@@ -2,7 +2,7 @@
 ## Especificación de Requisitos de Software (SRS)
 
 **Proyecto:** StatusHub - Servicio Web de Monitoreo de Disponibilidad Multi-Cliente  
-**Versión:** 1.2 (Actualizada con correcciones del docente)
+**Versión:** 1.4 (Actualizada con publicación opcional de páginas de estado)
 **Fecha:** 03/09/2026  
 **Autores:** Juan Eduardo Alvarez  
 
@@ -67,12 +67,13 @@ StatusHub estará compuesto por dos partes:
     El sistema deberá informar el porcentaje calculado, el nivel alcanzado, el tiempo total de caída y el período evaluado. Además del gráfico histórico, el panel deberá mostrar un indicador visual de la escala de disponibilidad, señalando claramente el nivel alcanzado y los niveles superiores que aún no se cumplen. El nivel mostrado será el mayor nivel cuya disponibilidad mínima se cumpla.
 *   **RF-06. Registro de incidentes**
     Cuando una verificación falle, el sistema generará un incidente con fecha, servicio afectado y descripción del fallo, visible en el panel del cliente.
-*   **RF-07. Página de estado pública (frontend)**
-    Un cliente podrá activar una página de estado pública, accesible mediante un link único sin necesidad de login. El cliente podrá seleccionar de manera individual y específica cuáles de sus servicios activos serán visibles en dicha página.
+*   **RF-07. Página de estado pública (frontend + backend)**
+    StatusHub generará un enlace único asociado a cada cliente para su página de estado. La página permanecerá privada por defecto y el cliente podrá activarla o desactivarla desde su panel. Cuando la active, podrá copiar y compartir el enlace sin necesidad de que los visitantes tengan una cuenta o inicien sesión. El cliente podrá seleccionar de manera individual y específica cuáles de sus servicios activos serán visibles en dicha página. Si la página está desactivada, el enlace no deberá mostrar información pública.
 *   **RF-08. Exportación del historial de incidentes (frontend)**
     Un cliente podrá exportar su historial de incidentes en formato CSV, filtrado por rango de fechas. El archivo descargado incluirá obligatoriamente las siguientes columnas: `Fecha y Hora`, `Nombre del Servicio`, `URL`, `Estado`, `Código HTTP`, `Latencia (ms)` y `Descripción del Fallo`.
 
-*(Nota: El original RF-09 ha sido eliminado, ya que las pantallas del frontend corresponden a interfaces y no a reglas funcionales del sistema).*
+*   **RF-09. Búsqueda de servicios en la página pública (frontend)**
+    La página de estado pública deberá permitir al visitante buscar servicios visibles mediante su nombre o URL. La búsqueda deberá actualizar el listado sin recargar la página y solo podrá filtrar los servicios que el cliente haya marcado previamente como públicos. Si no existen coincidencias, el sistema deberá mostrar un mensaje informativo sin exponer servicios privados.
 
 ### 3.2 REQUISITOS NO FUNCIONALES
 
@@ -99,7 +100,7 @@ StatusHub estará compuesto por dos partes:
 ## 4. Interfaces Externas
 
 *   **API REST:** Formato JSON, autenticación mediante token de sesión.
-*   **Página de estado pública:** HTML servido sin autenticación, accesible mediante un link único por cliente.
+*   **Página de estado pública:** HTML servido sin autenticación mediante el enlace único generado por StatusHub para cada cliente, únicamente cuando el cliente haya activado la publicación.
 *   **Frontend ↔ Backend:** La SPA consume únicamente la API REST; no accede directamente a la base de datos ni a Redis.
 *   **Exportación de incidentes:** Formato CSV.
 
@@ -124,8 +125,9 @@ StatusHub estará compuesto por dos partes:
 | **RF-04** | CU-03 Validar concurrencia de tareas | US-03 | CP-03 Segunda ejecución concurrente se omite correctamente |
 | **RF-05** | CU-04 Consultar métricas en panel privado | US-04 | CP-04 El panel muestra porcentaje, período, nivel y tiempo de caída; una disponibilidad de 99,9% o superior informa el Nivel 2 o uno superior |
 | **RF-06** | CU-05 Registrar incidente | US-05 | CP-05 Incidente se genera al fallar la verificación y se cierra al recuperarse |
-| **RF-07** | CU-06 Publicar página de estado | US-06 | CP-06 Visitante sin login solo visualiza servicios marcados como públicos |
+| **RF-07** | CU-06 Publicar página de estado | US-06 | CP-06 Un cliente activa la página, copia su enlace y un visitante sin login solo visualiza los servicios públicos seleccionados |
 | **RF-08** | CU-07 Exportar incidentes | US-07 | CP-07 Archivo CSV generado respeta filtros de fecha y columnas definidas |
+| **RF-09** | CU-08 Buscar servicios públicos | US-08 | CP-08 La búsqueda filtra por nombre o URL y nunca muestra servicios privados |
 
 ---
 

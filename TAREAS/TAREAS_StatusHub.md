@@ -6,9 +6,9 @@
 1. **Inicialización del Proyecto Frontend:** Configurar el proyecto como Single Page Application (SPA) utilizando TypeScript y React. **Estado:** `[COMPLETADA]`
 2. **Prototipado de Autenticación:** Crear las vistas de Registro e Inicio de sesión para los clientes (RF-01). **Estado:** `[COMPLETADA]`
 3. **Prototipado del Panel Privado (Dashboard):** Maquetar la vista principal destacando visualmente los servicios caídos (RNF-06). Incluir el listado de servicios y la maqueta del gráfico de disponibilidad de los últimos 30 días (RF-05). **Estado:** `[COMPLETADA]`
-4. **Formularios de Gestión de Servicios:** Crear los componentes modales o páginas para dar de alta, editar y eliminar servicios propios (RF-02). **Estado:** `[INICIAR]`
+4. **Formularios de Gestión de Servicios:** Crear los componentes modales o páginas para dar de alta, editar y eliminar servicios propios (RF-02). **Estado:** `[COMPLETADA]`
 5. **Prototipado del Historial de Incidentes:** Maquetar la tabla de incidentes y el botón para exportación CSV (RF-06, RF-08). **Estado:** `[INICIAR]`
-6. **Prototipado de la Página Pública:** Diseñar la vista de estado de solo lectura para los visitantes sin autenticación (RF-07). **Estado:** `[INICIAR]`
+6. **Prototipado de la Página Pública:** Diseñar la vista de estado de solo lectura para los visitantes sin autenticación (RF-07) e incorporar la búsqueda por nombre o URL de servicios públicos (RF-09). **Estado:** `[COMPLETADA]`
 7. **Dockerización inicial del Frontend:** Crear el `Dockerfile` para correr el frontend en contenedores durante el desarrollo. **Estado:** `[INICIAR]`
 
 ### Fase 2: Lógica del Frontend (Mocks y Estado)
@@ -27,7 +27,7 @@
 1. **Endpoints de Autenticación:** Implementar registro (hash de contraseñas, RNF-04) y login generando tokens de sesión. **Estado:** `[INICIAR]`
 2. **Endpoints CRUD de Servicios:** Desarrollar rutas para gestionar servicios, aplicando filtros obligatorios por ID de cliente autenticado en todas las consultas (RNF-02). **Estado:** `[INICIAR]`
 3. **Endpoints de Incidentes y Métricas:** Proveer datos históricos filtrados de los últimos 30 días para alimentar el panel del cliente. **Estado:** `[INICIAR]`
-4. **Endpoints Públicos:** Crear la ruta de solo lectura que devuelva los servicios con "visibilidad pública" para la página de estado (RF-07). **Estado:** `[INICIAR]`
+4. **Endpoints Públicos:** Crear la ruta de solo lectura que valide el enlace único del cliente, respete el estado de publicación y devuelva únicamente los servicios con "visibilidad pública" para la página de estado (RF-07). **Estado:** `[INICIAR]`
 
 ### Fase 5: Motor de Monitoreo y Workers (Backend)
 1. **Desarrollo del Checker:** Programar el script PHP para realizar peticiones HTTP/HTTPS, evaluando latencia, errores 5xx y expiración en 5 segundos (RF-03, RNF-01). **Estado:** `[INICIAR]`
