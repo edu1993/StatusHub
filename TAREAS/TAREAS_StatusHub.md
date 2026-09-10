@@ -9,7 +9,7 @@
 4. **Formularios de Gestión de Servicios:** Crear los componentes modales o páginas para dar de alta, editar y eliminar servicios propios (RF-02). **Estado:** `[COMPLETADA]`
 5. **Prototipado del Historial de Incidentes:** Maquetar la tabla de incidentes y el botón para exportación CSV (RF-06, RF-08). **Estado:** `[COMPLETADA]`
 6. **Prototipado de la Página Pública:** Diseñar la vista de estado de solo lectura para los visitantes sin autenticación (RF-07) e incorporar la búsqueda por nombre o URL de servicios públicos (RF-09). **Estado:** `[COMPLETADA]`
-7. **Dockerización inicial del Frontend:** Crear el `Dockerfile` para correr el frontend en contenedores durante el desarrollo. **Estado:** `[INICIAR]`
+7. **Dockerización inicial del Frontend:** Crear el `Dockerfile` para correr el frontend en contenedores durante el desarrollo. **Estado:** `[COMPLETADA]`
 
 ### Fase 2: Lógica del Frontend (Mocks y Estado)
 1. **Configuración de Enrutamiento:** Implementar el router de la SPA para proteger las rutas privadas (requieren token) y exponer las públicas. **Estado:** `[INICIAR]`
