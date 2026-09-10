@@ -59,6 +59,22 @@ const initialServices: Service[] = [
 
 type ServiceFormValues = Pick<Service, 'name' | 'url' | 'interval' | 'isPublic'>
 
+type Incident = {
+  date: string
+  serviceName: string
+  url: string
+  status: 'Abierto' | 'Resuelto'
+  httpCode: string
+  latency: string
+  description: string
+}
+
+const initialIncidents: Incident[] = [
+  { date: '2026-09-10 14:32', serviceName: 'Tienda online', url: 'tienda.ejemplo.com', status: 'Abierto', httpCode: 'Timeout', latency: '--', description: 'La respuesta supero el limite de 5 segundos.' },
+  { date: '2026-09-09 10:18', serviceName: 'Panel de clientes', url: 'panel.statushub.app', status: 'Resuelto', httpCode: '200', latency: '1840 ms', description: 'Latencia elevada durante la verificacion.' },
+  { date: '2026-09-05 08:41', serviceName: 'API principal', url: 'api.statushub.app', status: 'Resuelto', httpCode: '503', latency: '--', description: 'El servicio respondio con un error temporal.' },
+]
+
 const chartValues = [99.98, 99.99, 99.97, 99.95, 99.99, 99.98, 99.96, 99.99, 99.99, 99.94, 99.98, 99.99, 99.97, 99.98, 99.99, 99.98, 99.99, 99.99, 99.97, 99.99, 99.96, 99.95, 99.99, 99.98, 99.99, 99.99, 99.97, 99.99, 99.98, 99.99]
 
 const levelScale = [
@@ -154,9 +170,12 @@ function App() {
 
 function Dashboard({ email, onLogout, onShowPublic }: { email: string; onLogout: () => void; onShowPublic: () => void }) {
   const [serviceList, setServiceList] = useState(initialServices)
+  const [incidentList] = useState(initialIncidents)
   const [editingService, setEditingService] = useState<Service | null>(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [publicEnabled, setPublicEnabled] = useState(false)
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
   const publicUrl = 'https://statushub.app/status/eduardo'
 
   function openCreateForm() {
@@ -188,6 +207,22 @@ function Dashboard({ email, onLogout, onShowPublic }: { email: string; onLogout:
     await navigator.clipboard?.writeText(publicUrl)
   }
 
+  const filteredIncidents = incidentList.filter((incident) => {
+    const incidentDate = incident.date.slice(0, 10)
+    return (!fromDate || incidentDate >= fromDate) && (!toDate || incidentDate <= toDate)
+  })
+
+  function exportIncidents() {
+    const headers = ['Fecha y Hora', 'Nombre del Servicio', 'URL', 'Estado', 'Código HTTP', 'Latencia (ms)', 'Descripción del Fallo']
+    const rows = filteredIncidents.map((incident) => [incident.date, incident.serviceName, incident.url, incident.status, incident.httpCode, incident.latency, incident.description])
+    const csv = [headers, ...rows].map((row) => row.map((value) => `"${value.replaceAll('"', '""')}"`).join(',')).join('\n')
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }))
+    link.download = 'historial-de-incidentes.csv'
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
   return (
     <main className="dashboard-shell">
       <aside className="sidebar">
@@ -204,7 +239,7 @@ function Dashboard({ email, onLogout, onShowPublic }: { email: string; onLogout:
       <section className="dashboard-content">
         <header className="dashboard-header"><div><p className="eyebrow">VISTA GENERAL / 30 DIAS</p><h1>Buenos dias, {email ? email.split('@')[0] : 'cliente'}.</h1></div><div className="header-actions"><button className="icon-button" type="button" aria-label="Notificaciones">◌<span className="notification-dot" /></button><div className="avatar" aria-label="Perfil del cliente">CL</div></div></header>
         <div className="dashboard-banner"><div><span className="live-pill"><i /> EN VIVO</span><strong>Tu infraestructura esta operativa</strong><p>3 de 4 servicios funcionan normalmente. Hay un incidente que requiere tu atencion.</p></div><span className="banner-time">Actualizado hace 2 min</span></div>
-        <section className={`publication-card ${publicEnabled ? 'enabled' : ''}`}><div><p className="eyebrow">RF-07 / PAGINA PUBLICA</p><strong>{publicEnabled ? 'Tu pagina de estado esta publicada' : 'Comparte el estado de tus servicios'}</strong><p>{publicEnabled ? 'Los visitantes pueden consultar los servicios que marcaste como publicos.' : 'Activa un enlace publico para que tus usuarios consulten el estado sin iniciar sesion.'}</p>{publicEnabled && <code>{publicUrl}</code>}</div><div className="publication-actions"><button className="outline-button" type="button" onClick={() => setPublicEnabled((enabled) => !enabled)}>{publicEnabled ? 'Desactivar pagina' : 'Publicar pagina'}</button>{publicEnabled && <><button className="copy-button" type="button" onClick={copyPublicUrl}>Copiar enlace</button><button className="open-public-button" type="button" onClick={onShowPublic}>Abrir pagina ↗</button></>}</div></section>
+        <section className={`publication-card ${publicEnabled ? 'enabled' : ''}`}><div><p className="eyebrow">PAGINA PUBLICA</p><strong>{publicEnabled ? 'Tu pagina de estado esta publicada' : 'Comparte el estado de tus servicios'}</strong><p>{publicEnabled ? 'Los visitantes pueden consultar los servicios que marcaste como publicos.' : 'Activa un enlace publico para que tus usuarios consulten el estado sin iniciar sesion.'}</p>{publicEnabled && <code>{publicUrl}</code>}</div><div className="publication-actions"><button className="outline-button" type="button" onClick={() => setPublicEnabled((enabled) => !enabled)}>{publicEnabled ? 'Desactivar pagina' : 'Publicar pagina'}</button>{publicEnabled && <><button className="copy-button" type="button" onClick={copyPublicUrl}>Copiar enlace</button><button className="open-public-button" type="button" onClick={onShowPublic}>Abrir pagina ↗</button></>}</div></section>
 
         <section className="metric-grid" aria-label="Metricas principales">
           <article className="metric-card"><div className="metric-label"><span>Disponibilidad global</span><span className="metric-icon">◎</span></div><strong>99,94%</strong><span className="positive">↑ 0,12% vs. período anterior</span></article>
@@ -213,11 +248,12 @@ function Dashboard({ email, onLogout, onShowPublic }: { email: string; onLogout:
         </section>
 
         <section className="dashboard-grid">
-          <article className="panel chart-panel"><div className="panel-heading"><div><p className="eyebrow">RF-05 / HISTORIAL</p><h2>Disponibilidad</h2></div><button className="period-button" type="button">Ultimos 30 dias <span>⌄</span></button></div><div className="chart-summary"><strong>99,94%</strong><span>Promedio del periodo</span></div><div className="chart" aria-label="Grafico de disponibilidad de los ultimos 30 dias">{chartValues.map((value, index) => <i key={`${value}-${index}`} className={index === 21 ? 'chart-bar dip' : 'chart-bar'} style={{ height: `${Math.max(32, (value - 99.9) * 900)}%` }} title={`${value}%`} />)}</div><div className="chart-axis"><span>12 ago</span><span>19 ago</span><span>26 ago</span><span>Hoy</span></div></article>
+          <article className="panel chart-panel"><div className="panel-heading"><div><p className="eyebrow">HISTORIAL</p><h2>Disponibilidad</h2></div><button className="period-button" type="button">Ultimos 30 dias <span>⌄</span></button></div><div className="chart-summary"><strong>99,94%</strong><span>Promedio del periodo</span></div><div className="chart" aria-label="Grafico de disponibilidad de los ultimos 30 dias">{chartValues.map((value, index) => <i key={`${value}-${index}`} className={index === 21 ? 'chart-bar dip' : 'chart-bar'} style={{ height: `${Math.max(32, (value - 99.9) * 900)}%` }} title={`${value}%`} />)}</div><div className="chart-axis"><span>12 ago</span><span>19 ago</span><span>26 ago</span><span>Hoy</span></div></article>
           <article className="panel level-panel"><div className="panel-heading"><div><p className="eyebrow">NIVELES DE DISPONIBILIDAD</p><h2>Tus nueves</h2></div><span className="level-badge">Nivel 3</span></div><p className="level-description">El nivel mas alto alcanzado en este periodo.</p><div className="level-scale">{levelScale.map((item, index) => <div className={`level-row ${index < 3 ? 'achieved' : ''}`} key={item.level}><span className="level-check">{index < 3 ? '✓' : '·'}</span><div><strong>{item.level}</strong><span>{item.name}</span></div><b>{item.value}</b></div>)}</div><div className="downtime"><span>Caida acumulada</span><strong>26 min 14 s</strong></div></article>
         </section>
 
-        <section className="panel services-panel" id="services"><div className="panel-heading"><div><p className="eyebrow">RF-02 / RF-03</p><h2>Tus servicios</h2></div><button className="outline-button" type="button" onClick={openCreateForm}>+ Agregar servicio</button></div><div className="service-list">{serviceList.map((service) => <ServiceRow service={service} key={service.name} onEdit={openEditForm} onDelete={deleteService} />)}</div></section>
+        <section className="panel services-panel" id="services"><div className="panel-heading"><div><p className="eyebrow">MONITOREO</p><h2>Tus servicios</h2></div><button className="outline-button" type="button" onClick={openCreateForm}>+ Agregar servicio</button></div><div className="service-list">{serviceList.map((service) => <ServiceRow service={service} key={service.name} onEdit={openEditForm} onDelete={deleteService} />)}</div></section>
+        <section className="panel incidents-panel" id="incidents"><div className="panel-heading"><div><p className="eyebrow">ACTIVIDAD</p><h2>Historial de incidentes</h2></div><button className="outline-button" type="button" onClick={exportIncidents}>↓ Exportar CSV</button></div><div className="incident-filters"><label htmlFor="from-date">Desde<input id="from-date" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} /></label><label htmlFor="to-date">Hasta<input id="to-date" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} /></label><span>{filteredIncidents.length} incidentes encontrados</span></div><div className="incident-table-wrap"><table className="incident-table"><thead><tr><th>Fecha y hora</th><th>Servicio</th><th>Estado</th><th>HTTP</th><th>Latencia</th><th>Descripción</th></tr></thead><tbody>{filteredIncidents.map((incident) => <tr key={`${incident.date}-${incident.serviceName}`}><td>{incident.date}</td><td><strong>{incident.serviceName}</strong><small>{incident.url}</small></td><td><span className={`incident-status ${incident.status === 'Abierto' ? 'open' : 'resolved'}`}>{incident.status}</span></td><td>{incident.httpCode}</td><td>{incident.latency}</td><td>{incident.description}</td></tr>)}</tbody></table>{filteredIncidents.length === 0 && <p className="empty-incidents">No hay incidentes dentro del rango seleccionado.</p>}</div></section>
       </section>
       {isFormOpen && <ServiceModal service={editingService} onClose={() => setIsFormOpen(false)} onSave={saveService} />}
     </main>
@@ -249,7 +285,7 @@ function ServiceModal({ service, onClose, onSave }: { service: Service | null; o
     onSave({ name, url, interval, isPublic })
   }
 
-  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="service-modal" role="dialog" aria-modal="true" aria-labelledby="service-modal-title"><div className="modal-heading"><div><p className="eyebrow">RF-02 / SERVICIO PROPIO</p><h2 id="service-modal-title">{service ? 'Editar servicio' : 'Agregar servicio'}</h2></div><button className="modal-close" type="button" onClick={onClose} aria-label="Cerrar">×</button></div><p className="modal-copy">Configurá el recurso que el checker verificará periódicamente.</p><form className="service-form" onSubmit={handleSubmit}><label htmlFor="service-name">Nombre del servicio</label><input id="service-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. API de pagos" required /><label htmlFor="service-url">URL o endpoint</label><input id="service-url" type="url" value={url.startsWith('http') ? url : `https://${url}`} onChange={(event) => setUrl(event.target.value)} placeholder="https://api.ejemplo.com" required /><label htmlFor="service-interval">Intervalo de chequeo</label><select id="service-interval" value={interval} onChange={(event) => setInterval(Number(event.target.value))}><option value={30}>Cada 30 segundos</option><option value={60}>Cada 1 minuto</option><option value={300}>Cada 5 minutos</option><option value={600}>Cada 10 minutos</option></select><label className="public-check" htmlFor="service-public"><input id="service-public" type="checkbox" checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} /><span><strong>Mostrar en pagina publica</strong><small>Los visitantes podran consultar el estado de este servicio.</small></span></label><div className="modal-actions"><button className="cancel-button" type="button" onClick={onClose}>Cancelar</button><button className="submit-button" type="submit">{service ? 'Guardar cambios' : 'Agregar servicio'}<span aria-hidden="true">-&gt;</span></button></div></form></section></div>
+  return <div className="modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}><section className="service-modal" role="dialog" aria-modal="true" aria-labelledby="service-modal-title"><div className="modal-heading"><div><p className="eyebrow">SERVICIO PROPIO</p><h2 id="service-modal-title">{service ? 'Editar servicio' : 'Agregar servicio'}</h2></div><button className="modal-close" type="button" onClick={onClose} aria-label="Cerrar">×</button></div><p className="modal-copy">Configurá el recurso que el checker verificará periódicamente.</p><form className="service-form" onSubmit={handleSubmit}><label htmlFor="service-name">Nombre del servicio</label><input id="service-name" value={name} onChange={(event) => setName(event.target.value)} placeholder="Ej. API de pagos" required /><label htmlFor="service-url">URL o endpoint</label><input id="service-url" type="url" value={url.startsWith('http') ? url : `https://${url}`} onChange={(event) => setUrl(event.target.value)} placeholder="https://api.ejemplo.com" required /><label htmlFor="service-interval">Intervalo de chequeo</label><select id="service-interval" value={interval} onChange={(event) => setInterval(Number(event.target.value))}><option value={30}>Cada 30 segundos</option><option value={60}>Cada 1 minuto</option><option value={300}>Cada 5 minutos</option><option value={600}>Cada 10 minutos</option></select><label className="public-check" htmlFor="service-public"><input id="service-public" type="checkbox" checked={isPublic} onChange={(event) => setIsPublic(event.target.checked)} /><span><strong>Mostrar en pagina publica</strong><small>Los visitantes podran consultar el estado de este servicio.</small></span></label><div className="modal-actions"><button className="cancel-button" type="button" onClick={onClose}>Cancelar</button><button className="submit-button" type="submit">{service ? 'Guardar cambios' : 'Agregar servicio'}<span aria-hidden="true">-&gt;</span></button></div></form></section></div>
 }
 
 export default App
