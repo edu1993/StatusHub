@@ -3,7 +3,7 @@
 **Referencia de estados:** `[INICIAR]` indica una tarea pendiente de comienzo.
 
 ### Fase 1: Prototipado y Maquetado del Frontend (UI/UX)
-1. **Inicialización del Proyecto Frontend:** Configurar el proyecto como Single Page Application (SPA) utilizando TypeScript y React. **Estado:** `[INICIAR]`
+1. **Inicialización del Proyecto Frontend:** Configurar el proyecto como Single Page Application (SPA) utilizando TypeScript y React. **Estado:** `[COMPLETADA]`
 2. **Prototipado de Autenticación:** Crear las vistas de Registro e Inicio de sesión para los clientes (RF-01). **Estado:** `[INICIAR]`
 3. **Prototipado del Panel Privado (Dashboard):** Maquetar la vista principal destacando visualmente los servicios caídos (RNF-06). Incluir el listado de servicios y la maqueta del gráfico de disponibilidad de los últimos 30 días (RF-05). **Estado:** `[INICIAR]`
 4. **Formularios de Gestión de Servicios:** Crear los componentes modales o páginas para dar de alta, editar y eliminar servicios propios (RF-02). **Estado:** `[INICIAR]`
