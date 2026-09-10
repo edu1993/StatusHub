@@ -2,7 +2,7 @@
 ## Especificación de Requisitos de Software (SRS)
 
 **Proyecto:** StatusHub - Servicio Web de Monitoreo de Disponibilidad Multi-Cliente  
-**Versión:** 1.1 (Actualizada con correcciones del docente)  
+**Versión:** 1.2 (Actualizada con correcciones del docente)
 **Fecha:** 03/09/2026  
 **Autores:** Juan Eduardo Alvarez  
 
@@ -57,7 +57,14 @@ StatusHub estará compuesto por dos partes:
 *   **RF-04. Prevención de ejecuciones concurrentes**
     El sistema deberá validar la ejecución de las tareas de monitoreo garantizando que las verificaciones sobre un mismo servicio no se realicen de forma duplicada o concurrente, incluso si los ciclos de validación se superponen.
 *   **RF-05. Panel privado del cliente (frontend)**
-    El frontend mostrará al cliente el listado de sus servicios con su estado actual y un gráfico de disponibilidad histórica de los **últimos 30 días**. El porcentaje de disponibilidad se calculará mediante la fórmula: `((Tiempo Total del Período - Tiempo Total de Caídas) / Tiempo Total del Período) * 100`.
+    El frontend mostrará al cliente el listado de sus servicios con su estado actual y un gráfico de disponibilidad histórica de los **últimos 30 días**. Para cada servicio, el sistema calculará la disponibilidad mediante la fórmula `((Tiempo Total del Período - Tiempo Total de Caídas) / Tiempo Total del Período) * 100` y mostrará el nivel de disponibilidad alcanzado según la siguiente escala:
+    *   **Sin nivel:** disponibilidad inferior al 99%.
+    *   **Nivel 1 (dos nueves):** disponibilidad igual o superior al 99%.
+    *   **Nivel 2 (tres nueves):** disponibilidad igual o superior al 99,9%.
+    *   **Nivel 3 (cuatro nueves):** disponibilidad igual o superior al 99,99%.
+    *   **Nivel 4 (cinco nueves):** disponibilidad igual o superior al 99,999%.
+
+    El sistema deberá informar el porcentaje calculado, el nivel alcanzado, el tiempo total de caída y el período evaluado. Además del gráfico histórico, el panel deberá mostrar un indicador visual de la escala de disponibilidad, señalando claramente el nivel alcanzado y los niveles superiores que aún no se cumplen. El nivel mostrado será el mayor nivel cuya disponibilidad mínima se cumpla.
 *   **RF-06. Registro de incidentes**
     Cuando una verificación falle, el sistema generará un incidente con fecha, servicio afectado y descripción del fallo, visible en el panel del cliente.
 *   **RF-07. Página de estado pública (frontend)**
@@ -73,7 +80,18 @@ StatusHub estará compuesto por dos partes:
 *   **RNF-02. Aislamiento multi-cliente:** Un cliente nunca deberá poder ver, editar ni eliminar servicios o incidentes de otro cliente.
 *   **RNF-03. Concurrencia (Backend):** El sistema deberá garantizar la unicidad de las tareas de monitoreo, evitando procesos fantasmas o superpuestos en caso de alta carga.
 *   **RNF-04. Seguridad:** Las contraseñas deberán almacenarse hasheadas (nunca en texto plano) y las conexiones deberán usar HTTPS.
-*   **RNF-05. Disponibilidad:** El sistema StatusHub (API y Panel) deberá estar disponible el 98% del tiempo mensual, garantizando su operatividad independientemente del estado de los servicios de los clientes que se estén monitoreando.
+*   **RNF-05. Disponibilidad y observabilidad:** El sistema StatusHub (API y Panel) deberá medir y reportar su disponibilidad mensual utilizando la escala de niveles definida en RF-05. Como objetivo operativo, deberá alcanzar al menos el **Nivel 2 (tres nueves, 99,9%)**, independientemente del estado de los servicios de los clientes que se estén monitoreando. La medición deberá excluir las caídas de los servicios monitoreados y considerar únicamente la disponibilidad de la API y el Panel de StatusHub. El panel deberá informar el porcentaje de disponibilidad, el nivel alcanzado y el tiempo total de indisponibilidad del período.
+
+    Para un período de referencia de 30 días, los límites máximos aproximados de caída son:
+
+    | Nivel | Disponibilidad mínima | Caída máxima en 30 días |
+    | :--- | :--- | :--- |
+    | Nivel 1 (dos nueves) | 99% | 7 h 12 min |
+    | Nivel 2 (tres nueves) | 99,9% | 43 min 12 s |
+    | Nivel 3 (cuatro nueves) | 99,99% | 4 min 19 s |
+    | Nivel 4 (cinco nueves) | 99,999% | 26 s |
+
+    Estos valores son referencias para un mes de 30 días; el cálculo real deberá utilizar la duración exacta del período evaluado.
 *   **RNF-06. Usabilidad (Criterio de Aceptación UI):** El diseño de la interfaz del panel principal deberá destacar visualmente los servicios que se encuentren caídos, permitiendo al cliente identificarlos de forma inmediata en la vista por defecto sin requerir navegación adicional.
 
 ---
@@ -104,7 +122,7 @@ StatusHub estará compuesto por dos partes:
 | **RF-02** | CU-01 Dar de alta un servicio propio | US-01 | CP-01 Un cliente no puede ver servicios de otro cliente |
 | **RF-03** | CU-02 Ejecutar verificación periódica | US-02 | CP-02 Verificación se ejecuta en el intervalo configurado por el usuario |
 | **RF-04** | CU-03 Validar concurrencia de tareas | US-03 | CP-03 Segunda ejecución concurrente se omite correctamente |
-| **RF-05** | CU-04 Consultar métricas en panel privado | US-04 | CP-04 Gráfico muestra porcentaje 100% si no hay incidentes en 30 días |
+| **RF-05** | CU-04 Consultar métricas en panel privado | US-04 | CP-04 El panel muestra porcentaje, período, nivel y tiempo de caída; una disponibilidad de 99,9% o superior informa el Nivel 2 o uno superior |
 | **RF-06** | CU-05 Registrar incidente | US-05 | CP-05 Incidente se genera al fallar la verificación y se cierra al recuperarse |
 | **RF-07** | CU-06 Publicar página de estado | US-06 | CP-06 Visitante sin login solo visualiza servicios marcados como públicos |
 | **RF-08** | CU-07 Exportar incidentes | US-07 | CP-07 Archivo CSV generado respeta filtros de fecha y columnas definidas |
