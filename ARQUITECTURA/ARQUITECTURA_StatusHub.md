@@ -6,7 +6,7 @@
 * **Fundamentación:**
   * La arquitectura **Cliente-Servidor** asigna al servidor el procesamiento y el almacenamiento de datos. Esto se alinea con el backend de StatusHub, que centraliza la base de datos MySQL, el control de concurrencia con Redis y la validación de la disponibilidad de los servicios.
   * Adicionalmente, la **Arquitectura en Capas (N-tier)** organiza el código dividiendo claramente las responsabilidades. En este caso, se divide en la capa de presentación (la API REST en JSON), la capa de lógica (el motor de monitoreo) y la capa de datos.
-  * En un entorno Docker, esta separación es ideal porque permite desplegar un contenedor para el servidor web que expone la API, otro contenedor independiente para los procesos en segundo plano que ejecutan las verificaciones, y contenedores aislados para los motores de almacenamiento (MySQL y Redis).
+  * El backend se divide en `public/index.php` como entrada HTTP y módulos en `src/` para configuración, acceso a datos, autenticación, servicios, incidentes y worker. Docker despliega la API y el worker en contenedores independientes, junto con MySQL y Redis.
 
 ---
 
@@ -15,11 +15,10 @@
 * **Tipo de Arquitectura:** Cliente dentro del modelo **Cliente-Servidor**.
 * **Fundamentación:**
   * En la arquitectura **Cliente-Servidor**, el componente cliente es el responsable exclusivo de la interfaz de usuario y del consumo de servicios.
-  * El frontend de StatusHub opera exactamente bajo este principio: es una aplicación SPA desarrollada en TypeScript que delega el procesamiento complejo y se enfoca en gestionar la interfaz y consumir la API REST del backend.
-  * Utilizando Docker, esta arquitectura se implementa desplegando un contenedor web ligero (como Nginx) dedicado únicamente a despachar los archivos estáticos compilados de la interfaz para los clientes y los visitantes públicos.
+  * El frontend de StatusHub es una SPA React/TypeScript; mantiene HTML, CSS y lógica en archivos separados y consume la API REST. Nginx sirve los archivos compilados y reenvía `/api` al backend.
 
 ## Página de estado pública
 
-* El backend será responsable de generar y validar un enlace único por cliente, almacenar si la página está activa y devolver únicamente los servicios que el cliente haya marcado como públicos.
-* El cliente administrará desde el panel la activación o desactivación de su página, la copia del enlace y la selección de servicios visibles. La página permanecerá desactivada por defecto.
-* El frontend renderizará la página pública sin autenticación y ofrecerá la búsqueda por nombre o URL únicamente sobre los servicios públicos recibidos desde la API REST. No tendrá permisos para editar servicios ni acceder directamente a MySQL o Redis.
+* El backend genera un slug único por cliente y devuelve únicamente los servicios que estén marcados como públicos.
+* El cliente puede copiar y abrir su enlace público, y define los servicios visibles editando esa opción desde el dashboard.
+* El frontend renderiza la página sin autenticación y permite buscar por nombre o URL dentro de los servicios públicos devueltos por la API REST. No accede directamente a MySQL ni Redis.

@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>StatusHub - Monitoreo de Servicios</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <!-- Babel -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        body { font-family: 'Inter', system-ui, -apple-system, sans-serif; }
+        .glass-panel { background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); }
+        /* Scrollbar styling - Dark Mode */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-300 antialiased h-screen overflow-hidden selection:bg-blue-500/30">
+    <div id="root" class="h-full w-full"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- MOCK DATA ---
+        const mockUser = { name: "Admin Empresa", email: "admin@empresa.com" };
+        
+        const generateRecentChecks = (isDown, errorMsg = null, lastCode = 200) => {
+            // Generamos 24 puntos para simular las 24 horas del día con fallos aleatorios
+            return Array.from({ length: 24 }).map((_, i) => {
+                const hour = String(i).padStart(2, '0');
+                let willFail = false;
+                
+                if (isDown) {
+                    // Si el servicio está caído globalmente, aseguramos las últimas horas y sumamos caídas intermitentes
+                    if (i >= 22) willFail = true; 
+                    else if (Math.random() > 0.70) willFail = true; // 30% chance de fallo en cada hora anterior
+                } else {
+                    // Si el servicio está operativo, agregamos un raro micro-corte para realismo
+                    if (Math.random() > 0.95) willFail = true;
+                }
+
+                if (willFail) {
+                    return { timestamp: `${hour}:00`, latency: 0, statusCode: errorMsg ? null : (lastCode !== 200 ? lastCode : 503), error: errorMsg || 'Timeout excedido' };
+                }
+                return { timestamp: `${hour}:00`, latency: 20 + Math.floor(Math.random() * 80), statusCode: 200, error: null };
+            });
+        };
+
+        const generateMinuteChecks = (hourCheck) => {
+            // Genera 60 barras (minuto a minuto) basadas en el estado general de esa hora
+            return Array.from({ length: 60 }).map((_, i) => {
+                const minute = String(i).padStart(2, '0');
+                const hourPrefix = hourCheck.timestamp.split(':')[0];
+                let isFailing = false;
+                
+                if (hourCheck.latency === 0) {
+                    // Si la hora falló en el gráfico principal, hay un 40% de probabilidad de que cada minuto de esa hora falle
+                    isFailing = Math.random() > 0.6; 
+                } else {
+                    // Si la hora estuvo bien, los micro-cortes por minuto son extremadamente raros
+                    isFailing = Math.random() > 0.98;
+                }
+
+                if (isFailing) {
+                    return { timestamp: `${hourPrefix}:${minute}`, latency: 0, statusCode: hourCheck.statusCode, error: hourCheck.error || 'Timeout' };
+                }
+                
+                // Variación sutil de latencia sobre el promedio de esa hora
+                const baseLat = hourCheck.latency || 45;
+                const lat = Math.max(10, baseLat + (Math.random() * 40 - 20));
+                return { timestamp: `${hourPrefix}:${minute}`, latency: Math.floor(lat), statusCode: 200, error: null };
+            });
+        };
+
+        const mockServices = [
+            { id: 1, name: "API de Pagos", url: "https://api.empresa.com/v1/pagos", interval: 30, isPublic: true, status: "up", uptime: 99.99, recentChecks: generateRecentChecks(false) },
+            { id: 2, name: "Portal de Clientes", url: "https://clientes.empresa.com", interval: 60, isPublic: true, status: "down", uptime: 98.50, recentChecks: generateRecentChecks(true, "Timeout > 5000ms") },
+            { id: 3, name: "Base de Datos RDS (Solo Interno)", url: "tcp://db.internal.aws:3306", interval: 120, isPublic: false, status: "up", uptime: 100, recentChecks: generateRecentChecks(false) },
+            { id: 4, name: "Servicio de Correo", url: "https://mail.empresa.com/health", interval: 60, isPublic: true, status: "down", uptime: 99.90, recentChecks: generateRecentChecks(true, null, 502) },
+        ];
+
+        const mockIncidents = [
+            { id: 101, date: "2026-10-30 14:15:22", service: "Portal de Clientes", status: "Abierto", httpCode: "502", latency: "-", desc: "Bad Gateway - Connection refused" },
+            { id: 102, date: "2026-10-28 09:20:00", service: "API de Pagos", status: "Resuelto", httpCode: "500", latency: "5001", desc: "Timeout máximo de 5 segundos excedido" },
+            { id: 103, date: "2026-10-25 18:45:10", service: "Servicio de Correo", status: "Resuelto", httpCode: "503", latency: "1200", desc: "Service Unavailable - Mantenimiento programado" },
+            { id: 104, date: "2026-10-30 02:15:00", service: "Portal de Clientes", status: "Resuelto", httpCode: "504", latency: "5001", desc: "Gateway Timeout - Upstream server no responde" },
+            { id: 105, date: "2026-10-29 11:10:00", service: "API de Pagos", status: "Resuelto", httpCode: "403", latency: "45", desc: "Forbidden - Certificado SSL expirado o inválido" },
+            { id: 106, date: "2026-10-30 23:45:00", service: "API de Pagos", status: "Abierto", httpCode: "500", latency: "-", desc: "Internal Server Error - Falla en base de datos secundaria" },
+        ];
+
+        // --- COMPONENTS ---
+
+        const Icon = ({ name, className }) => {
+            return <i data-lucide={name} className={className}></i>;
+        };
+
+        // --- NUEVO COMPONENTE: Gráfico SVG estilo Grafana INTERACTIVO (BARRAS DE 24 HS y 60 MIN) ---
+        const ChartContent = ({ dataChecks, tooltipScale = 1, isModal = false, onBarClick }) => {
+            const [hoverIndex, setHoverIndex] = useState(null);
+
+            // Resetear el tooltip si cambian los datos
+            useEffect(() => {
+                setHoverIndex(null);
+            }, [dataChecks]);
+
+            const maxLat = Math.max(...dataChecks.map(c => c.latency), 100);
+            const w = 1000; 
+            const h = 300;  
+            const xStep = w / dataChecks.length;
+            const barWidth = xStep * 0.7; 
+
+            const hoveredCheck = hoverIndex !== null && dataChecks ? dataChecks[hoverIndex] : null;
+
+            return (
+                <div className="relative w-full h-full group" onMouseLeave={() => setHoverIndex(null)}>
+                    <svg viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" className="w-full h-full overflow-visible">
+                        {/* Barras de Latencia */}
+                        {dataChecks.map((c, i) => {
+                            const isError = c.latency === 0 || c.error;
+                            const barHeight = isError ? h : Math.max((c.latency / maxLat) * h, h * 0.05);
+                            const y = h - barHeight;
+                            const fill = isError ? "#ef4444" : "#10b981"; // Rojo si cae, verde si está ok
+                            const opacity = hoverIndex === i ? "1" : (hoverIndex !== null ? "0.3" : "0.8");
+                            
+                            return (
+                                <rect
+                                    key={`bar-${i}`}
+                                    x={i * xStep + (xStep - barWidth) / 2}
+                                    y={y}
+                                    width={barWidth}
+                                    height={barHeight}
+                                    fill={fill}
+                                    opacity={opacity}
+                                    rx={tooltipScale > 1 ? 4 : 2}
+                                    className="transition-all duration-200"
+                                />
+                            );
+                        })}
+
+                        {/* Zonas de interacción (Hover y Clic) transparentes */}
+                        {dataChecks.map((c, i) => (
+                            <rect
+                                key={`hoverzone-${i}`}
+                                x={i * xStep}
+                                y={0}
+                                width={xStep}
+                                height={h}
+                                fill="transparent"
+                                onMouseEnter={() => setHoverIndex(i)}
+                                onClick={(e) => onBarClick && onBarClick(e, c)}
+                                className={onBarClick ? "cursor-pointer" : "cursor-default"}
+                            />
+                        ))}
+                    </svg>
+
+                    {/* Tooltip HTML superpuesto */}
+                    {hoveredCheck && (
+                        <div
+                            className="absolute bottom-full mb-3 -ml-20 w-40 bg-slate-800 text-white text-xs p-2.5 rounded-lg shadow-xl border border-slate-700 pointer-events-none z-[60] flex flex-col gap-1.5 transition-all duration-150"
+                            style={{ left: `${(hoverIndex / dataChecks.length) * 100 + (100 / dataChecks.length) / 2}%`, transform: `scale(${tooltipScale})`, transformOrigin: 'bottom center' }}
+                        >
+                            <div className="flex items-center justify-between border-b border-slate-600 pb-1 mb-1">
+                                <span className="font-bold">{hoveredCheck.timestamp} hs</span>
+                                <Icon name="clock" className="w-3 h-3 text-slate-400" />
+                            </div>
+                            {hoveredCheck.latency === 0 ? (
+                                <div className="text-red-400 font-medium flex flex-col gap-1">
+                                    <span className="uppercase text-[10px] tracking-wider font-bold">Fallo Detectado:</span>
+                                    <span>{hoveredCheck.error || `HTTP ${hoveredCheck.statusCode}`}</span>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-1">
+                                    <span className="text-emerald-400 font-mono text-sm">{hoveredCheck.latency} ms</span>
+                                    <span className="text-slate-400 font-mono text-[10px]">HTTP {hoveredCheck.statusCode}</span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const LatencyChart = ({ checks, status, title = "Latencia (24 hs)", onNavigateToHistory }) => {
+            const [expandedData, setExpandedData] = useState(null); // Guardará los datos ampliados {title, checks}
+
+            const maxLatencyOverall = Math.max(...checks.map(c => c.latency), 100);
+
+            const handleBarClick = (e, c) => {
+                e.stopPropagation(); // Evitar que el clic llegue al contenedor principal de 24h
+                setExpandedData({
+                    title: `Desglose Minuto a Minuto (${c.timestamp.split(':')[0]}:00 - ${c.timestamp.split(':')[0]}:59)`,
+                    checks: generateMinuteChecks(c)
+                });
+            };
+            
+            return (
+                <>
+                    <div 
+                        className="w-full h-28 mt-4 relative bg-slate-950 rounded-lg p-2 border border-slate-800 shadow-inner hover:border-slate-700 transition-colors group cursor-pointer"
+                        onClick={() => setExpandedData({ title: "Detalle de Monitoreo - Últimas 24 Horas", checks: checks })}
+                    >
+                        <div className="absolute top-2 left-3 text-[10px] text-slate-400 font-mono tracking-wider z-10 flex items-center gap-1.5 bg-slate-950/80 px-1.5 py-0.5 rounded">
+                            <Icon name="maximize-2" className="w-3 h-3 text-slate-500 group-hover:text-blue-400 transition-colors" /> 
+                            {title} (Clic fondo: 24h / Clic barra: Minuto)
+                        </div>
+                        <div className="absolute top-2 right-3 text-[10px] text-slate-500 font-mono z-10 bg-slate-950/80 px-1 rounded">{maxLatencyOverall} ms</div>
+                        <div className="absolute bottom-2 right-3 text-[10px] text-slate-500 font-mono z-10 bg-slate-950/80 px-1 rounded">0 ms</div>
+                        
+                        <div className="w-full h-16 mt-6 relative">
+                            <ChartContent dataChecks={checks} tooltipScale={1} isModal={false} onBarClick={handleBarClick} />
+                        </div>
+                    </div>
+
+                    {/* Modal Ampliado (Lightbox) para 24h o 60min */}
+                    {expandedData && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setExpandedData(null)}>
+                            <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl w-full max-w-5xl shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                                <button 
+                                    className="absolute top-6 right-6 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 p-2 rounded-full transition-colors z-10" 
+                                    onClick={() => setExpandedData(null)}
+                                >
+                                    <Icon name="x" className="w-5 h-5" />
+                                </button>
+                                
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-2 pr-12 gap-4">
+                                    <h3 className="text-xl font-bold text-white flex items-center gap-3">
+                                        <Icon name="activity" className="w-6 h-6 text-blue-500" />
+                                        {expandedData.title}
+                                    </h3>
+                                    {expandedData.checks.length > 24 && (
+                                        <button 
+                                            className="text-sm bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 px-4 py-2 rounded-lg border border-blue-500/20 transition-colors flex items-center gap-2 whitespace-nowrap"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                setExpandedData({ title: "Detalle de Monitoreo - Últimas 24 Horas", checks: checks });
+                                            }}
+                                        >
+                                            <Icon name="arrow-left" className="w-4 h-4" /> Volver a 24 hs
+                                        </button>
+                                    )}
+                                </div>
+                                <p className="text-sm text-slate-400 mb-8">
+                                    {expandedData.checks.length <= 24 
+                                        ? "Pasa el ratón sobre la gráfica para ver el estado exacto o haz clic en una barra para ver el detalle por minuto." 
+                                        : (onNavigateToHistory ? "Pasa el ratón sobre la gráfica o haz clic en una barra para ver este servicio en el historial." : "Pasa el ratón sobre la gráfica para ver el estado exacto minuto a minuto.")}
+                                </p>
+                                
+                                <div className="w-full h-80 relative bg-slate-950 p-4 rounded-xl border border-slate-800">
+                                    <div className="absolute top-4 left-4 text-xs text-slate-500 font-mono z-10 bg-slate-950/80 px-2 py-1 rounded">Límite Superior: {Math.max(...expandedData.checks.map(c=>c.latency), 100)} ms</div>
+                                    <div className="absolute bottom-4 left-4 text-xs text-slate-500 font-mono z-10 bg-slate-950/80 px-2 py-1 rounded">Caída: 0 ms</div>
+                                    <ChartContent 
+                                        dataChecks={expandedData.checks} 
+                                        tooltipScale={1.2} 
+                                        isModal={true} 
+                                        onBarClick={(e, c) => {
+                                            if (expandedData.checks.length <= 24) {
+                                                handleBarClick(e, c);
+                                            } else if (onNavigateToHistory) {
+                                                setExpandedData(null);
+                                                onNavigateToHistory();
+                                            }
+                                        }}
+                                    />
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </>
+            );
+        };
+
+        // Layout Auth (Login & Register)
+        const AuthLayout = ({ title, subtitle, children }) => (
+            <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 relative overflow-hidden">
+                <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-600 to-emerald-500"></div>
+                <div className="w-full max-w-md bg-slate-900/80 backdrop-blur-xl border border-slate-800 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500 z-10">
+                    <div className="p-8 pb-6 text-center border-b border-slate-800 bg-slate-900/50">
+                        <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-500/10 text-blue-500 mb-4 shadow-inner ring-1 ring-blue-500/20">
+                            <Icon name="activity" className="w-8 h-8" />
+                        </div>
+                        <h2 className="text-2xl font-bold text-white">{title}</h2>
+                        <p className="text-sm text-slate-400 mt-2">{subtitle}</p>
+                    </div>
+                    <div className="p-8">
+                        {children}
+                    </div>
+                </div>
+                
+                {/* Decoración de fondo */}
+                <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl"></div>
+                <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-emerald-600/10 rounded-full blur-3xl"></div>
+            </div>
+        );
+
+        // Pantalla 1: Login
+        const LoginScreen = ({ setView }) => (
+            <AuthLayout title="Bienvenido a StatusHub" subtitle="Inicia sesión para gestionar tus servicios">
+                <form onSubmit={(e) => { e.preventDefault(); setView('dashboard'); }} className="space-y-5">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">Correo Electrónico</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                                <Icon name="mail" className="w-5 h-5" />
+                            </div>
+                            <input type="email" defaultValue="admin@empresa.com" className="block w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" required />
+                        </div>
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">Contraseña</label>
+                        <div className="relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                                <Icon name="lock" className="w-5 h-5" />
+                            </div>
+                            <input type="password" defaultValue="password" className="block w-full pl-10 pr-3 py-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors" required />
+                        </div>
+                    </div>
+                    <button type="submit" className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-2.5 rounded-lg transition-colors shadow-lg shadow-blue-900/20 mt-2">
+                        Ingresar
+                    </button>
+                    <div className="text-center mt-6">
+                        <button type="button" onClick={() => setView('register')} className="text-sm text-blue-400 hover:text-blue-300 font-medium">
+                            ¿No tienes cuenta? Regístrate aquí
+                        </button>
+                    </div>
+                </form>
+            </AuthLayout>
+        );
+
+        // Pantalla 2: Registro
+        const RegisterScreen = ({ setView }) => (
+            <AuthLayout title="Crear Cuenta" subtitle="Comienza a monitorear tu infraestructura hoy">
+                <form onSubmit={(e) => { e.preventDefault(); setView('dashboard'); }} className="space-y-4">
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">Correo Electrónico</label>
+                        <input type="email" placeholder="ejemplo@empresa.com" className="block w-full px-3 py-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">Contraseña</label>
+                        <input type="password" placeholder="Mínimo 8 caracteres" className="block w-full px-3 py-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required />
+                    </div>
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-1">Confirmar Contraseña</label>
+                        <input type="password" placeholder="Repite tu contraseña" className="block w-full px-3 py-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" required />
+                    </div>
+                    <button type="submit" className="w-full bg-slate-700 hover:bg-slate-600 text-white font-medium py-2.5 rounded-lg transition-colors shadow-sm mt-4">
+                        Registrarse
+                    </button>
+                    <div className="text-center mt-6">
+                        <button type="button" onClick={() => setView('login')} className="text-sm text-slate-400 hover:text-white font-medium">
+                            Volver al inicio de sesión
+                        </button>
+                    </div>
+                </form>
+            </AuthLayout>
+        );
+
+        // Layout Principal con Sidebar
+        const AdminLayout = ({ children, setView, currentView }) => (
+            <div className="flex h-screen overflow-hidden bg-slate-950">
+                <aside className="w-64 bg-slate-950 border-r border-slate-800 text-slate-300 flex flex-col flex-shrink-0 z-10">
+                    <div className="h-16 flex items-center px-6 border-b border-slate-800">
+                        <Icon name="activity" className="w-6 h-6 text-blue-500 mr-2" />
+                        <span className="text-white font-bold text-lg tracking-wide">StatusHub</span>
+                    </div>
+                    <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
+                        <button onClick={() => setView('dashboard')} className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${currentView === 'dashboard' ? 'bg-blue-600/10 text-blue-500 shadow-sm border border-blue-500/20' : 'hover:bg-slate-900 hover:text-white border border-transparent'}`}>
+                            <Icon name="layout-dashboard" className="w-5 h-5 mr-3" /> Dashboard
+                        </button>
+                        <button onClick={() => setView('service-form')} className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${currentView === 'service-form' ? 'bg-blue-600/10 text-blue-500 shadow-sm border border-blue-500/20' : 'hover:bg-slate-900 hover:text-white border border-transparent'}`}>
+                            <Icon name="server" className="w-5 h-5 mr-3" /> Alta de Servicio
+                        </button>
+                        <button onClick={() => setView('incidents')} className={`w-full flex items-center px-4 py-3 rounded-lg transition-colors ${currentView === 'incidents' ? 'bg-blue-600/10 text-blue-500 shadow-sm border border-blue-500/20' : 'hover:bg-slate-900 hover:text-white border border-transparent'}`}>
+                            <Icon name="alert-triangle" className="w-5 h-5 mr-3" /> Historial de Incidentes
+                        </button>
+                    </nav>
+                    <div className="p-4 border-t border-slate-800 bg-slate-950">
+                        <button onClick={() => setView('public')} className="w-full flex items-center px-4 py-3 text-slate-400 hover:text-white hover:bg-slate-900 rounded-lg transition-colors mb-2">
+                            <Icon name="external-link" className="w-5 h-5 mr-3" /> Ver Página Pública
+                        </button>
+                        <button onClick={() => setView('login')} className="w-full flex items-center px-4 py-3 text-red-400 hover:text-red-300 hover:bg-red-950/30 rounded-lg transition-colors">
+                            <Icon name="log-out" className="w-5 h-5 mr-3" /> Cerrar Sesión
+                        </button>
+                    </div>
+                </aside>
+
+                <main className="flex-1 flex flex-col h-screen overflow-hidden">
+                    <header className="h-16 bg-slate-900 border-b border-slate-800 flex items-center justify-between px-8 flex-shrink-0 z-0">
+                        <h1 className="text-xl font-semibold text-white capitalize">
+                            {currentView === 'service-form' ? 'Gestión de Servicio' : currentView.replace('-', ' ')}
+                        </h1>
+                        <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center text-slate-300 font-bold">
+                                A
+                            </div>
+                            <span className="text-sm font-medium text-slate-300">{mockUser.name}</span>
+                        </div>
+                    </header>
+                    <div className="flex-1 overflow-auto p-8 bg-slate-950">
+                        <div className="max-w-6xl mx-auto">
+                            {children}
+                        </div>
+                    </div>
+                </main>
+            </div>
+        );
+
+        // Pantalla 3: Dashboard Privado (SaaS Dark Style + Grafana timeline)
+        const DashboardScreen = ({ setView }) => {
+            const upServices = mockServices.filter(s => s.status === 'up').length;
+            const downServices = mockServices.length - upServices;
+
+            return (
+                <div className="space-y-8 animate-in fade-in duration-500">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-6 flex flex-col relative overflow-hidden">
+                            <div className="absolute top-0 right-0 p-4 opacity-5">
+                                <Icon name="bar-chart-2" className="w-24 h-24 text-white" />
+                            </div>
+                            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Disponibilidad Global</h3>
+                            <div className="flex items-end gap-3 mb-2">
+                                <span className="text-4xl font-extrabold text-white">99.95%</span>
+                            </div>
+                            <div className="flex items-center mt-auto pt-4 border-t border-slate-800">
+                                <span className="px-2.5 py-1 rounded bg-blue-900/30 text-blue-400 text-xs font-bold border border-blue-500/20">
+                                    Nivel 2 (Tres nueves)
+                                </span>
+                                <span className="text-xs text-slate-500 ml-3">Últimos 30 días</span>
+                            </div>
+                        </div>
+
+                        <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 p-6 flex flex-col">
+                            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider mb-2">Resumen de Servicios</h3>
+                            <div className="flex gap-6 mt-2">
+                                <div className="flex flex-col">
+                                    <span className="text-4xl font-bold text-emerald-500">{upServices}</span>
+                                    <span className="text-xs text-slate-400 font-medium uppercase mt-1">Operativos</span>
+                                </div>
+                                <div className="w-px bg-slate-800"></div>
+                                <div className="flex flex-col">
+                                    <span className="text-4xl font-bold text-red-500">{downServices}</span>
+                                    <span className="text-xs text-slate-400 font-medium uppercase mt-1">Caídos</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Listado de Servicios Destacados (RNF-06: bordes y fondos rojos para caídos) */}
+                    <div>
+                        <h2 className="text-lg font-bold text-slate-200 mb-4 flex items-center">
+                            <Icon name="server" className="w-5 h-5 mr-2 text-slate-500" /> Servicios Monitoreados
+                        </h2>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            {mockServices.map(srv => {
+                                const latestCheck = srv.recentChecks[srv.recentChecks.length - 1];
+                                return (
+                                <div key={srv.id} className={`relative p-6 rounded-xl border-2 transition-all duration-300 hover:shadow-md ${
+                                    srv.status === 'down' 
+                                    ? 'bg-red-50 border-red-500 shadow-[0_0_15px_rgba(239,68,68,0.15)] z-10' 
+                                    : 'bg-white border-slate-200'
+                                }`}>
+                                    {/* Insignia de estado */}
+                                    <div className="absolute top-6 right-6">
+                                        {srv.status === 'down' ? (
+                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-red-600 text-white uppercase tracking-wider shadow-sm animate-pulse">
+                                                <Icon name="alert-triangle" className="w-3 h-3 mr-1.5" /> CAÍDO
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 uppercase tracking-wider">
+                                                <Icon name="check-circle" className="w-3 h-3 mr-1.5" /> Operativo
+                                            </span>
+                                        )}
+                                    </div>
+
+                                    <h3 className={`text-xl font-bold mb-1 pr-24 ${srv.status === 'down' ? 'text-red-900' : 'text-slate-800'}`}>
+                                        {srv.name}
+                                    </h3>
+                                    <p className={`text-sm font-mono p-1.5 rounded truncate max-w-full inline-block mb-3 ${srv.status === 'down' ? 'bg-red-900/10 text-red-500' : 'bg-slate-100/50 text-slate-500'}`}>
+                                        {srv.url}
+                                    </p>
+
+                                    {/* Info Código HTTP & Latencia */}
+                                    <div className="mb-4 text-sm flex flex-wrap items-center gap-3">
+                                        {latestCheck.statusCode ? (
+                                            <span className={`px-2.5 py-1 rounded-md font-mono text-xs font-bold shadow-sm ${srv.status === 'down' ? 'bg-red-600 text-white' : 'bg-slate-800 text-white'}`}>
+                                                HTTP {latestCheck.statusCode}
+                                            </span>
+                                        ) : (
+                                            <span className="px-2.5 py-1 rounded-md font-mono text-xs font-bold shadow-sm bg-red-600 text-white flex items-center">
+                                                <Icon name="x-circle" className="w-3 h-3 mr-1.5" /> {latestCheck.error}
+                                            </span>
+                                        )}
+                                        <span className={`text-xs font-semibold ${srv.status === 'down' ? 'text-red-600' : 'text-slate-500'}`}>
+                                            Última Latencia: {latestCheck.latency > 0 ? `${latestCheck.latency} ms` : 'N/A'}
+                                        </span>
+                                    </div>
+
+                                    <div className={`grid grid-cols-2 gap-4 mb-2 p-4 rounded-lg border ${srv.status === 'down' ? 'bg-red-100/50 border-red-200' : 'bg-white/60 border-slate-100'}`}>
+                                        <div>
+                                            <p className={`text-xs font-semibold uppercase ${srv.status === 'down' ? 'text-red-400' : 'text-slate-400'}`}>Chequeo</p>
+                                            <p className={`text-sm font-medium ${srv.status === 'down' ? 'text-red-800' : 'text-slate-700'}`}>{srv.interval}s</p>
+                                        </div>
+                                        <div>
+                                            <p className={`text-xs font-semibold uppercase ${srv.status === 'down' ? 'text-red-400' : 'text-slate-400'}`}>Uptime (30d)</p>
+                                            <p className={`text-sm font-medium ${srv.status === 'down' ? 'text-red-800' : 'text-slate-700'}`}>{srv.uptime}%</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Gráfico SVG Grafana Style integrado */}
+                                    <LatencyChart checks={srv.recentChecks} status={srv.status} onNavigateToHistory={() => setView('incidents', { service: srv.name })} />
+
+                                    <div className="flex justify-between items-center pt-5 mt-5 border-t border-slate-200/60">
+                                        <div className={`flex items-center text-sm font-medium ${srv.status === 'down' ? 'text-red-600' : 'text-slate-600'}`}>
+                                            {srv.isPublic 
+                                                ? <><Icon name="globe" className="w-4 h-4 mr-1.5 text-blue-500" /> Público</> 
+                                                : <><Icon name="lock" className="w-4 h-4 mr-1.5 text-slate-400" /> Privado</>
+                                            }
+                                        </div>
+                                        <div className="flex gap-2">
+                                            <button 
+                                                onClick={() => setView('service-form', srv)} 
+                                                className="p-2 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors" 
+                                                title="Editar"
+                                            >
+                                                <Icon name="edit" className="w-4 h-4" />
+                                            </button>
+                                            <button className="p-2 rounded text-slate-400 hover:text-red-600 hover:bg-red-50 transition-colors" title="Eliminar">
+                                                <Icon name="trash-2" className="w-4 h-4" />
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                                );
+                            })}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        // Pantalla 4: Formulario (Ahora maneja pre-carga de datos para Editar)
+        const ServiceFormScreen = ({ setView, serviceToEdit }) => {
+            const isEditing = !!serviceToEdit;
+
+            return (
+                <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 overflow-hidden max-w-2xl animate-in slide-in-from-bottom-4 duration-300">
+                    <div className="px-6 py-5 border-b border-slate-800 bg-slate-900/50 flex items-center justify-between">
+                        <div>
+                            <h2 className="text-lg font-bold text-white">{isEditing ? 'Editar Servicio' : 'Agregar Nuevo Servicio'}</h2>
+                            <p className="text-sm text-slate-400 mt-1">Configura el recurso que deseas monitorear periódicamente.</p>
+                        </div>
+                        {isEditing && (
+                            <span className="bg-blue-900/30 text-blue-400 border border-blue-500/30 px-3 py-1 rounded text-xs font-bold uppercase">
+                                Modo Edición
+                            </span>
+                        )}
+                    </div>
+                    <form onSubmit={(e) => { e.preventDefault(); setView('dashboard'); }} className="p-6 space-y-6">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-1">Nombre del Servicio <span className="text-red-500">*</span></label>
+                            <input 
+                                type="text" 
+                                defaultValue={isEditing ? serviceToEdit.name : ""} 
+                                placeholder="Ej: API Principal" 
+                                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                                required 
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-1">URL / Endpoint <span className="text-red-500">*</span></label>
+                            <input 
+                                type="url" 
+                                defaultValue={isEditing ? serviceToEdit.url : ""} 
+                                placeholder="https://api.miproyecto.com/health" 
+                                className="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm" 
+                                required 
+                            />
+                            <p className="text-xs text-slate-500 mt-2">Debe ser accesible vía HTTP/HTTPS. Se esperará un código 2xx o 3xx.</p>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-1">Intervalo de Chequeo (Segundos) <span className="text-red-500">*</span></label>
+                            <div className="relative w-1/2">
+                                <input 
+                                    type="number" 
+                                    min="30" 
+                                    defaultValue={isEditing ? serviceToEdit.interval : "60"} 
+                                    className="w-full px-4 py-2.5 bg-slate-950 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500" 
+                                    required 
+                                />
+                                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                    <span className="text-slate-500 text-sm font-medium">segundos</span>
+                                </div>
+                            </div>
+                            <p className="text-xs text-slate-500 mt-2">El valor mínimo permitido por el sistema es de 30 segundos.</p>
+                        </div>
+                        
+                        <div className="pt-4 border-t border-slate-800">
+                            <div className="flex items-start">
+                                <div className="flex items-center h-5">
+                                    <input 
+                                        id="public_toggle" 
+                                        type="checkbox" 
+                                        defaultChecked={isEditing ? serviceToEdit.isPublic : false} 
+                                        className="w-4 h-4 text-blue-600 bg-slate-950 border-slate-700 rounded focus:ring-blue-500 focus:ring-2" 
+                                    />
+                                </div>
+                                <div className="ml-3 text-sm">
+                                    <label htmlFor="public_toggle" className="font-medium text-slate-200">Hacer visible en Página de Estado Pública</label>
+                                    <p className="text-slate-500 mt-1">Si está activo, los visitantes sin sesión podrán ver el estado de este servicio en tu página pública.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="flex justify-end gap-3 pt-6">
+                            <button type="button" onClick={() => setView('dashboard')} className="px-5 py-2.5 border border-slate-700 bg-slate-800 text-slate-300 font-medium rounded-lg hover:bg-slate-700 transition-colors">
+                                Cancelar
+                            </button>
+                            <button type="submit" className="px-5 py-2.5 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-500 transition-colors flex items-center">
+                                <Icon name="save" className="w-4 h-4 mr-2" /> {isEditing ? 'Guardar Cambios' : 'Guardar Nuevo Servicio'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            );
+        };
+
+        // Pantalla 5: Historial (Ahora con filtros y detalle de modal)
+        const IncidentHistoryScreen = ({ initialFilters }) => {
+            const [serviceFilter, setServiceFilter] = useState(initialFilters?.service || "Todos");
+            const [statusFilter, setStatusFilter] = useState("Todos");
+            const [selectedIncident, setSelectedIncident] = useState(null);
+
+            // Extraer nombres de servicios únicos para el filtro
+            const uniqueServices = ["Todos", ...new Set(mockIncidents.map(inc => inc.service))];
+
+            // Filtrado dinámico
+            const filteredIncidents = mockIncidents.filter(inc => {
+                const matchService = serviceFilter === "Todos" || inc.service === serviceFilter;
+                const matchStatus = statusFilter === "Todos" || inc.status === statusFilter;
+                return matchService && matchStatus;
+            });
+
+            return (
+                <div className="bg-slate-900 rounded-xl shadow-lg border border-slate-800 overflow-hidden animate-in fade-in duration-300">
+                    <div className="px-6 py-5 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                        <div>
+                            <h2 className="text-lg font-bold text-white">Registro de Incidentes</h2>
+                            <p className="text-sm text-slate-400">Historial completo de fallos detectados por los checkers.</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                            {/* Filtros */}
+                            <select 
+                                value={serviceFilter} 
+                                onChange={(e) => setServiceFilter(e.target.value)}
+                                className="bg-slate-950 border border-slate-700 text-slate-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+                            >
+                                {uniqueServices.map(srv => <option key={srv} value={srv}>{srv}</option>)}
+                            </select>
+                            <select 
+                                value={statusFilter} 
+                                onChange={(e) => setStatusFilter(e.target.value)}
+                                className="bg-slate-950 border border-slate-700 text-slate-300 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 p-2.5"
+                            >
+                                <option value="Todos">Todos los Estados</option>
+                                <option value="Abierto">Abierto</option>
+                                <option value="Resuelto">Resuelto</option>
+                            </select>
+
+                            <button className="flex items-center justify-center gap-2 bg-slate-800 hover:bg-slate-700 border border-slate-700 text-white px-4 py-2.5 rounded-lg text-sm font-medium transition-colors shadow-sm whitespace-nowrap">
+                                <Icon name="download" className="w-4 h-4" /> Exportar CSV
+                            </button>
+                        </div>
+                    </div>
+                    <div className="overflow-x-auto">
+                        <table className="w-full text-left border-collapse">
+                            <thead>
+                                <tr className="bg-slate-950/50 border-b border-slate-800">
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Fecha y Hora</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Servicio</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Estado</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Cód. HTTP</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider">Latencia</th>
+                                    <th className="px-6 py-4 text-xs font-bold text-slate-400 uppercase tracking-wider w-1/3">Detalle</th>
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-slate-800/50">
+                                {filteredIncidents.length > 0 ? filteredIncidents.map(inc => (
+                                    <tr key={inc.id} className="hover:bg-slate-800/80 transition-colors cursor-pointer" onClick={() => setSelectedIncident(inc)}>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">{inc.date}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm font-semibold text-white">{inc.service}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap">
+                                            <span className={`inline-flex items-center px-2.5 py-1 rounded text-xs font-bold border ${
+                                                inc.status === 'Abierto' ? 'bg-red-500/10 text-red-400 border-red-500/20' : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                                            }`}>
+                                                {inc.status === 'Abierto' ? <Icon name="alert-circle" className="w-3 h-3 mr-1" /> : <Icon name="check-circle-2" className="w-3 h-3 mr-1" />}
+                                                {inc.status}
+                                            </span>
+                                        </td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400 font-mono bg-slate-950/30">{inc.httpCode}</td>
+                                        <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-400">{inc.latency !== '-' ? `${inc.latency} ms` : '-'}</td>
+                                        <td className="px-6 py-4 text-sm text-slate-400 max-w-xs truncate" title={inc.desc}>{inc.desc}</td>
+                                    </tr>
+                                )) : (
+                                    <tr>
+                                        <td colSpan="6" className="px-6 py-12 text-center text-slate-500">
+                                            No se encontraron incidentes para los filtros seleccionados.
+                                        </td>
+                                    </tr>
+                                )}
+                            </tbody>
+                        </table>
+                    </div>
+                    <div className="px-6 py-4 border-t border-slate-800 flex items-center justify-between text-sm text-slate-500">
+                        <span>Mostrando {filteredIncidents.length} registros</span>
+                        <div className="flex gap-1">
+                            <button className="px-3 py-1 border border-slate-700 rounded bg-slate-800 text-slate-500 cursor-not-allowed">Anterior</button>
+                            <button className="px-3 py-1 border border-slate-700 rounded bg-slate-800 text-slate-500 cursor-not-allowed">Siguiente</button>
+                        </div>
+                    </div>
+
+                    {/* Modal Detalles del Incidente */}
+                    {selectedIncident && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/90 backdrop-blur-sm p-4 animate-in fade-in duration-200" onClick={() => setSelectedIncident(null)}>
+                            <div className="bg-slate-900 border border-slate-700 p-8 rounded-2xl w-full max-w-lg shadow-2xl relative" onClick={e => e.stopPropagation()}>
+                                <button className="absolute top-4 right-4 text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 p-1.5 rounded-full transition-colors" onClick={() => setSelectedIncident(null)}>
+                                    <Icon name="x" className="w-5 h-5" />
+                                </button>
+                                
+                                <div className="flex items-center gap-4 mb-6 pb-6 border-b border-slate-800">
+                                    <div className={`p-4 rounded-xl ${selectedIncident.status === 'Abierto' ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                        <Icon name={selectedIncident.status === 'Abierto' ? 'alert-triangle' : 'check-circle'} className="w-8 h-8" />
+                                    </div>
+                                    <div>
+                                        <h3 className="text-2xl font-bold text-white">Detalle de Incidente</h3>
+                                        <p className="text-sm text-slate-400 mt-1 font-mono">ID: #{selectedIncident.id}</p>
+                                    </div>
+                                </div>
+                                
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                                            <span className="block text-xs font-semibold text-slate-500 uppercase mb-1">Servicio</span>
+                                            <span className="text-sm font-bold text-white">{selectedIncident.service}</span>
+                                        </div>
+                                        <div className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                                            <span className="block text-xs font-semibold text-slate-500 uppercase mb-1">Estado</span>
+                                            <span className={`text-sm font-bold ${selectedIncident.status === 'Abierto' ? 'text-red-400' : 'text-emerald-400'}`}>{selectedIncident.status}</span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                                        <span className="block text-xs font-semibold text-slate-500 uppercase mb-1">Fecha y Hora de Detección</span>
+                                        <span className="text-sm font-bold text-white">{selectedIncident.date}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <div className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                                            <span className="block text-xs font-semibold text-slate-500 uppercase mb-1">Código HTTP</span>
+                                            <span className="text-sm font-mono text-blue-400 font-bold">{selectedIncident.httpCode}</span>
+                                        </div>
+                                        <div className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                                            <span className="block text-xs font-semibold text-slate-500 uppercase mb-1">Latencia</span>
+                                            <span className="text-sm font-mono text-white">{selectedIncident.latency !== '-' ? `${selectedIncident.latency} ms` : '-'}</span>
+                                        </div>
+                                    </div>
+                                    <div className="bg-slate-950 p-4 rounded-lg border border-slate-800">
+                                        <span className="block text-xs font-semibold text-slate-500 uppercase mb-1">Descripción del Fallo (Logs del Checker)</span>
+                                        <span className="text-sm text-slate-300 font-mono">{selectedIncident.desc}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        // Pantalla 6: Página Pública 
+        const PublicStatusScreen = ({ setView }) => {
+            const [searchTerm, setSearchTerm] = useState("");
+            
+            const publicServices = useMemo(() => {
+                return mockServices
+                    .filter(s => s.isPublic)
+                    .filter(s => s.name.toLowerCase().includes(searchTerm.toLowerCase()) || s.url.toLowerCase().includes(searchTerm.toLowerCase()));
+            }, [searchTerm]);
+
+            const hasIssues = publicServices.some(s => s.status === 'down');
+
+            return (
+                <div className="min-h-screen bg-slate-950 overflow-auto flex flex-col">
+                    <header className="bg-slate-900 border-b border-slate-800 py-6 px-4 shadow-sm">
+                        <div className="max-w-4xl mx-auto flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center text-white shadow-lg shadow-blue-900/20">
+                                    <Icon name="activity" className="w-6 h-6" />
+                                </div>
+                                <div>
+                                    <h1 className="text-xl font-bold text-white leading-tight">Estado de Servicios</h1>
+                                    <p className="text-xs text-slate-400 font-medium">Empresa S.A.</p>
+                                </div>
+                            </div>
+                            <button onClick={() => setView('dashboard')} className="text-sm font-medium text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 px-4 py-2 rounded-lg transition-colors border border-slate-700 flex items-center gap-2">
+                                <Icon name="arrow-left" className="w-4 h-4" /> Volver al Admin
+                            </button>
+                        </div>
+                    </header>
+
+                    <main className="flex-1 max-w-4xl w-full mx-auto px-4 py-10">
+                        <div className={`rounded-xl p-6 mb-10 shadow-lg border ${
+                            hasIssues ? 'bg-red-950/30 border-red-500/30' : 'bg-emerald-950/30 border-emerald-500/30'
+                        }`}>
+                            <div className="flex items-center gap-4">
+                                <div className={`p-3 rounded-full ${hasIssues ? 'bg-red-500/20 text-red-500' : 'bg-emerald-500/20 text-emerald-400'}`}>
+                                    {hasIssues ? <Icon name="alert-triangle" className="w-8 h-8" /> : <Icon name="check-circle" className="w-8 h-8" />}
+                                </div>
+                                <div>
+                                    <h2 className="text-xl font-bold text-white">
+                                        {hasIssues ? 'Algunos sistemas están experimentando problemas' : 'Todos los sistemas están operativos'}
+                                    </h2>
+                                    <p className="text-sm text-slate-400 mt-1">
+                                        Última actualización: {new Date().toLocaleTimeString()}
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Buscador de Servicios */}
+                        <div className="mb-6 relative">
+                            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-500">
+                                <Icon name="search" className="w-5 h-5" />
+                            </div>
+                            <input 
+                                type="text" 
+                                placeholder="Buscar servicio por nombre o URL..." 
+                                value={searchTerm}
+                                onChange={(e) => setSearchTerm(e.target.value)}
+                                className="block w-full pl-10 pr-3 py-3 bg-slate-900 border border-slate-700 text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors shadow-sm"
+                            />
+                        </div>
+
+                        {/* Lista de Servicios */}
+                        <div className="bg-slate-900 rounded-xl shadow-sm border border-slate-800 overflow-hidden">
+                            {publicServices.length > 0 ? (
+                                <ul className="divide-y divide-slate-800">
+                                    {publicServices.map(srv => {
+                                        const latestCheck = srv.recentChecks[srv.recentChecks.length - 1];
+                                        return (
+                                        <li key={srv.id} className={`p-6 flex flex-col hover:bg-slate-800/50 transition-colors ${srv.status === 'down' ? 'bg-red-950/20' : ''}`}>
+                                            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+                                                <div className="flex-1">
+                                                    <h3 className={`text-lg font-bold ${srv.status === 'down' ? 'text-red-400' : 'text-slate-200'}`}>{srv.name}</h3>
+                                                    <p className="text-sm text-slate-500 font-mono mt-1">{srv.url}</p>
+                                                    
+                                                    {/* Indicador Código HTTP/Error */}
+                                                    <div className="mt-3 flex items-center gap-3">
+                                                        {latestCheck.statusCode ? (
+                                                            <span className={`px-2 py-1 rounded font-mono text-xs font-bold ${srv.status === 'down' ? 'bg-red-900/50 text-red-400 border border-red-500/30' : 'bg-slate-800 text-slate-300 border border-slate-700'}`}>
+                                                                HTTP {latestCheck.statusCode}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="px-2 py-1 rounded font-mono text-xs font-bold bg-red-900/50 text-red-400 border border-red-500/30 flex items-center">
+                                                                <Icon name="x-circle" className="w-3 h-3 mr-1" /> {latestCheck.error}
+                                                            </span>
+                                                        )}
+                                                        <span className="text-xs font-semibold text-slate-400 uppercase tracking-wide">
+                                                            Uptime: {srv.uptime}%
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="flex flex-col sm:items-end gap-2 sm:w-1/3">
+                                                    {srv.status === 'up' ? (
+                                                        <span className="inline-flex items-center px-3 py-1.5 rounded bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 font-bold text-sm">
+                                                            <Icon name="check" className="w-4 h-4 mr-2" /> Operativo
+                                                        </span>
+                                                    ) : (
+                                                        <span className="inline-flex items-center px-3 py-1.5 rounded bg-red-500/10 border border-red-500/20 text-red-400 font-bold text-sm animate-pulse">
+                                                            <Icon name="x" className="w-4 h-4 mr-2" /> Caído
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                            
+                                            {/* Gráfico integrado en la vista pública */}
+                                            <div className="mt-4">
+                                                <LatencyChart checks={srv.recentChecks} status={srv.status} title={`Latencia - ${srv.name}`} />
+                                            </div>
+                                        </li>
+                                        );
+                                    })}
+                                </ul>
+                            ) : (
+                                <div className="p-12 text-center text-slate-500">
+                                    <Icon name="search-x" className="w-12 h-12 mx-auto text-slate-600 mb-4" />
+                                    <p className="text-lg font-medium text-slate-400 mb-1">No se encontraron servicios</p>
+                                    <p className="text-sm">Ningún servicio público coincide con "{searchTerm}"</p>
+                                </div>
+                            )}
+                        </div>
+                    </main>
+                    <footer className="mt-auto py-8 text-center text-sm font-medium text-slate-500">
+                        Página de estado impulsada por <span className="text-blue-500 font-bold">StatusHub</span>
+                    </footer>
+                </div>
+            );
+        };
+
+        // --- ENRUTADOR PRINCIPAL ---
+        const App = () => {
+            const [view, setView] = useState('dashboard');
+            const [navigationPayload, setNavigationPayload] = useState(null); // Estado para payload de navegación
+
+            // Función envoltorio para manejar navegación y limpieza de estados
+            const handleNavigate = (newView, data = null) => {
+                setView(newView);
+                setNavigationPayload(data);
+            };
+
+            useEffect(() => {
+                if (window.lucide) {
+                    lucide.createIcons();
+                }
+            });
+
+            switch (view) {
+                case 'login': return <LoginScreen setView={handleNavigate} />;
+                case 'register': return <RegisterScreen setView={handleNavigate} />;
+                case 'public': return <PublicStatusScreen setView={handleNavigate} />;
+                case 'dashboard':
+                    return <AdminLayout setView={handleNavigate} currentView={view}><DashboardScreen setView={handleNavigate} /></AdminLayout>;
+                case 'service-form':
+                    return <AdminLayout setView={handleNavigate} currentView={view}><ServiceFormScreen setView={handleNavigate} serviceToEdit={navigationPayload} /></AdminLayout>;
+                case 'incidents':
+                    return <AdminLayout setView={handleNavigate} currentView={view}><IncidentHistoryScreen initialFilters={navigationPayload} /></AdminLayout>;
+                default:
+                    return <LoginScreen setView={handleNavigate} />;
+            }
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
