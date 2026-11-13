@@ -104,14 +104,13 @@ Si ejecutas la interfaz con Vite, el proxy `/api` utiliza por defecto `http://lo
 
 ## Levantar en local
 
-Desde la raíz del repositorio, copia el archivo de entorno de ejemplo y levanta el frontend, API, worker, MySQL y Redis:
+Desde la raíz del repositorio, levanta el frontend, la API, el worker, MySQL y Redis:
 
 ```bash
-cp .env.example .env
 docker compose up --build
 ```
 
-Abre `http://localhost:8080/`. El esquema se crea automáticamente al arrancar. Para crear una cuenta, regístrate desde la pantalla inicial; luego agrega servicios HTTP/HTTPS desde el dashboard.
+No hace falta un archivo `.env` para el uso local: Compose aplica valores de desarrollo predeterminados. Si necesitas personalizarlos, crea un `.env` local (está excluido de Git). Abre `http://localhost:8080/`. El esquema se crea automáticamente al arrancar. Para crear una cuenta, regístrate desde la pantalla inicial; luego agrega servicios HTTP/HTTPS desde el dashboard.
 
 Para desarrollo solo del frontend, con la API Docker escuchando en el puerto 8080:
 
