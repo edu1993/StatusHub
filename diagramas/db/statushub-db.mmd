@@ -1,0 +1,62 @@
+erDiagram
+    clients {
+        INT id PK
+        VARCHAR email UK
+        VARCHAR password_hash
+        INT auth_version
+        VARCHAR public_slug UK
+        TIMESTAMP terms_accepted_at
+        TIMESTAMP created_at
+    }
+
+    services {
+        INT id PK
+        INT client_id FK
+        VARCHAR name
+        VARCHAR url
+        INT check_interval
+        BOOLEAN is_public
+        TIMESTAMP next_check
+        TIMESTAMP created_at
+    }
+
+    incidents {
+        INT id PK
+        INT service_id FK
+        ENUM status
+        INT http_code
+        INT latency
+        TEXT description
+        TIMESTAMP created_at
+        TIMESTAMP resolved_at
+    }
+
+    checks {
+        BIGINT id PK
+        INT service_id FK
+        INT status_code
+        INT latency
+        VARCHAR error_message
+        TIMESTAMP created_at
+    }
+
+    password_resets {
+        BIGINT id PK
+        INT client_id FK
+        CHAR token_hash UK
+        TIMESTAMP expires_at
+        TIMESTAMP used_at
+        TIMESTAMP created_at
+    }
+
+    password_reset_requests {
+        BIGINT id PK
+        CHAR email_hash
+        CHAR ip_hash
+        TIMESTAMP created_at
+    }
+
+    clients ||--o{ services : owns
+    services ||--o{ incidents : records
+    services ||--o{ checks : has
+    clients ||--o{ password_resets : requests

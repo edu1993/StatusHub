@@ -1,0 +1,12 @@
+{
+  "name": "statushub-mail-adapter",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "nodemailer": "^10.3.1"
+  }
+}

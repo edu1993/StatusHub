@@ -1,0 +1,122 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: statushub_db
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-rootpassword}
+      MYSQL_DATABASE: statushub
+      MYSQL_USER: statushub
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-statushub_dev_password}
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: statushub_redis
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mail-adapter:
+    build:
+      context: ./aplicacion/mail-adapter
+    container_name: statushub_mail_adapter
+    restart: unless-stopped
+    environment:
+      MAILER_MODE: ${MAILER_MODE:-local}
+      MAILER_API_TOKEN: ${MAILER_API_TOKEN:-local-dev-mailer-api-token-change-before-deploy}
+      MAILER_INBOX_ENABLED: "true"
+      MAILER_DATA_DIR: /data
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_SECURE: ${SMTP_SECURE:-false}
+      SMTP_REQUIRE_TLS: ${SMTP_REQUIRE_TLS:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+    ports:
+      - "127.0.0.1:8026:8025"
+    volumes:
+      - mail_data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8025/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./aplicacion/backend
+    container_name: statushub_backend
+    restart: unless-stopped
+    command: sh -c "php bin/init-db.php && apache2-foreground"
+    ports:
+      - "127.0.0.1:8081:80"
+    environment: &backend_environment
+      DB_HOST: mysql
+      DB_NAME: statushub
+      DB_USER: statushub
+      DB_PASS: ${MYSQL_PASSWORD:-statushub_dev_password}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: ${JWT_SECRET:-local-only-change-this-secret-before-deploying}
+      FRONTEND_ORIGIN: ${FRONTEND_ORIGIN:-http://localhost:8080}
+      MAILER_URL: http://mail-adapter:8025
+      MAILER_API_TOKEN: ${MAILER_API_TOKEN:-local-dev-mailer-api-token-change-before-deploy}
+      MAILER_MODE: ${MAILER_MODE:-local}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      mail-adapter:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "php -r 'exit(file_get_contents(\"http://127.0.0.1/api/health\") === false ? 1 : 0);'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  worker:
+    build:
+      context: ./aplicacion/backend
+    container_name: statushub_worker
+    restart: unless-stopped
+    command: php bin/worker.php
+    environment: *backend_environment
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: ./aplicacion/frontend
+    container_name: statushub_frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  db_data:
+  mail_data:
