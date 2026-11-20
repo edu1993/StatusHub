@@ -1,105 +1,93 @@
 # StatusHub: tareas y cronograma de desarrollo
 
-## Criterios para cargar las tareas
+## Resumen de estado del proyecto
 
-- Cada fila de la lista de tareas corresponde a una tarea independiente para cargar en la plataforma.
-- **Estado inicial:** `A iniciar`.
-- **Vencimiento:** completar con la fecha de la última clase de la semana indicada en el Gantt. Las semanas son relativas a la primera clase del cronograma; no se asignan fechas calendario porque no se proporcionó el calendario de clases.
-- Los nombres son breves; el alcance de cada tarea se explica en la descripción.
-- El prototipo de la Fase 1 ya figura como completado en el plan anterior, por lo que no se vuelve a cargar como trabajo pendiente.
+Todas las fases planificadas (Fases 1 a 6) y la ronda de correcciones de QA se encuentran **completadas** y verificadas sobre el stack Docker Compose.
 
 ## Diagrama de Gantt
 
-`■` indica las semanas en las que se trabaja en la tarea. El vencimiento de cada tarea es al cierre de su última semana marcada.
+`■` indica las semanas planificadas de ejecución de cada tarea.
 
-| ID | Tarea | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 |
-|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|
-| F2.1 | Enrutamiento y acceso | ■ | | | | | | | | |
-| F2.2 | Sesión de usuario | ■ | | | | | | | | |
-| F2.3 | API simulada | ■ | | | | | | | | |
-| F2.4 | Métricas y gráfico | ■ | | | | | | | | |
-| F2.5 | Exportación CSV | ■ | | | | | | | | |
-| F3.1 | Entorno Docker | | ■ | | | | | | | |
-| F3.2 | Estructura de la API | | ■ | | | | | | | |
-| F3.3 | Esquema de base de datos | | ■ | | | | | | | |
-| F3.4 | Conexiones MySQL y Redis | | ■ | | | | | | | |
-| F4.1 | Registro y autenticación | | | ■ | | | | | | |
-| F4.2 | Protección de rutas | | | ■ | | | | | | |
-| F4.3 | CRUD de servicios | | | ■ | ■ | | | | | |
-| F4.4 | Incidentes y métricas | | | | ■ | | | | | |
-| F4.5 | API pública de estado | | | | ■ | | | | | |
-| F4.6 | Validaciones y errores | | | | ■ | | | | | |
-| F5.1 | Checker HTTP/HTTPS | | | | | ■ | | | | |
-| F5.2 | Registro de verificaciones | | | | | ■ | | | | |
-| F5.3 | Bloqueos con Redis | | | | | ■ | ■ | | | |
-| F5.4 | Apertura y cierre de incidentes | | | | | | ■ | | | |
-| F5.5 | Ejecución periódica del worker | | | | | | ■ | | | |
-| F5.6 | Recuperación ante fallos | | | | | | ■ | | | |
-| F6.1 | Integración de autenticación | | | | | | | ■ | | |
-| F6.2 | Integración de servicios | | | | | | | ■ | ■ | |
-| F6.3 | Integración de estado público | | | | | | | | ■ | |
-| F6.4 | Integración de incidentes y métricas | | | | | | | | ■ | |
-| F6.5 | Pruebas de API y permisos | | | | | | | | ■ | |
-| F6.6 | Pruebas de carga del worker | | | | | | | | | ■ |
-| F6.7 | Validación integral y documentación | | | | | | | | | ■ |
+| ID | Tarea | S1 | S2 | S3 | S4 | S5 | S6 | S7 | S8 | S9 | Estado |
+|---|---|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|:---:|---|
+| F2.1 | Enrutamiento y acceso | ■ | | | | | | | | | Completada |
+| F2.2 | Sesión de usuario | ■ | | | | | | | | | Completada |
+| F2.3 | API simulada | ■ | | | | | | | | | Completada |
+| F2.4 | Métricas y gráfico | ■ | | | | | | | | | Completada |
+| F2.5 | Exportación CSV | ■ | | | | | | | | | Completada |
+| F3.1 | Entorno Docker | | ■ | | | | | | | | Completada |
+| F3.2 | Estructura de la API | | ■ | | | | | | | | Completada |
+| F3.3 | Esquema de base de datos | | ■ | | | | | | | | Completada |
+| F3.4 | Conexiones MySQL y Redis | | ■ | | | | | | | | Completada |
+| F4.1 | Registro y autenticación | | | ■ | | | | | | | Completada |
+| F4.2 | Protección de rutas | | | ■ | | | | | | | Completada |
+| F4.3 | CRUD de servicios | | | ■ | ■ | | | | | | Completada |
+| F4.4 | Incidentes y métricas | | | | ■ | | | | | | Completada |
+| F4.5 | API pública de estado | | | | ■ | | | | | | Completada |
+| F4.6 | Validaciones y errores | | | | ■ | | | | | | Completada |
+| F5.1 | Checker HTTP/HTTPS | | | | | ■ | | | | | Completada |
+| F5.2 | Registro de verificaciones | | | | | ■ | | | | | Completada |
+| F5.3 | Bloqueos con Redis | | | | | ■ | ■ | | | | Completada |
+| F5.4 | Apertura y cierre de incidentes | | | | | | ■ | | | | Completada |
+| F5.5 | Ejecución periódica del worker | | | | | | ■ | | | | Completada |
+| F5.6 | Recuperación ante fallos | | | | | | ■ | | | | Completada |
+| F6.1 | Integración de autenticación | | | | | | | ■ | | | Completada |
+| F6.2 | Integración de servicios | | | | | | | ■ | ■ | | Completada |
+| F6.3 | Integración de estado público | | | | | | | | ■ | | Completada |
+| F6.4 | Integración de incidentes y métricas | | | | | | | | ■ | | Completada |
+| F6.5 | Pruebas de API y permisos | | | | | | | | ■ | | Completada |
+| F6.6 | Pruebas de carga del worker | | | | | | | | | ■ | Completada |
+| F6.7 | Validación integral y documentación | | | | | | | | | ■ | Completada |
 
-## Tareas para cargar en la plataforma
+## Detalle por fase
 
-Para todas las tareas de esta lista, establecer **Estado: `A iniciar`**. Completar la fecha exacta de vencimiento con la última clase de la semana indicada arriba.
+### Fase 1: Prototipado y maquetado inicial — Completada
+Inicialización de la SPA, prototipo HTML de referencia (`aplicacion/prototipo/statushub_app.html`), vistas base y Dockerfile inicial.
 
-### Fase 2: Lógica del frontend
-
-| ID | Nombre | Descripción | Vencimiento |
+### Fase 2: Lógica del frontend — Completada
+| ID | Nombre | Descripción | Estado |
 |---|---|---|---|
-| F2.1 | Enrutamiento y acceso | Configurar las rutas de la SPA, separar vistas públicas y privadas y redirigir a usuarios no autenticados. | Fin de S1 — completar fecha |
-| F2.2 | Sesión de usuario | Implementar el estado de sesión, persistencia del token y cierre de sesión para los flujos de autenticación. | Fin de S1 — completar fecha |
-| F2.3 | API simulada | Crear datos de prueba y funciones HTTP simuladas para servicios, incidentes, autenticación y página pública. | Fin de S1 — completar fecha |
-| F2.4 | Métricas y gráfico | Calcular y mostrar la disponibilidad de los últimos 30 días a partir de los datos simulados. | Fin de S1 — completar fecha |
-| F2.5 | Exportación CSV | Generar y descargar el CSV de incidentes con las columnas requeridas y los filtros aplicados. | Fin de S1 — completar fecha |
+| F2.1 | Enrutamiento y acceso | Separación de vistas privadas, `/status/<slug>` y `/reset-password?token=...`. | Completada |
+| F2.2 | Sesión de usuario | Persistencia JWT en `localStorage`, renovación de token y cierre de sesión. | Completada |
+| F2.3 | API simulada | Capa `src/api.ts` inicialmente mockeada y luego conectada a la API REST real. | Completada |
+| F2.4 | Métricas y gráfico | Disponibilidad global, gráfico histórico 24 hs y latencia interactiva con desglose por minuto. | Completada |
+| F2.5 | Exportación CSV | Descarga filtrada en CSV UTF-8 con BOM desde el historial de incidentes. | Completada |
 
-### Fase 3: Infraestructura y base de datos
-
-| ID | Nombre | Descripción | Vencimiento |
+### Fase 3: Infraestructura y base de datos — Completada
+| ID | Nombre | Descripción | Estado |
 |---|---|---|---|
-| F3.1 | Entorno Docker | Crear Docker Compose para API PHP, worker, servidor web, MySQL y Redis; verificar que los servicios inicien. | Fin de S2 — completar fecha |
-| F3.2 | Estructura de la API | Inicializar el proyecto PHP, instalar dependencias con Composer y preparar el enrutador REST. | Fin de S2 — completar fecha |
-| F3.3 | Esquema de base de datos | Crear tablas de clientes, servicios, verificaciones e incidentes con relaciones e índices para aislar los datos por cliente. | Fin de S2 — completar fecha |
-| F3.4 | Conexiones MySQL y Redis | Configurar las conexiones de la aplicación a MySQL y Redis mediante variables de entorno y comprobar su disponibilidad. | Fin de S2 — completar fecha |
+| F3.1 | Entorno Docker | `docker-compose.yml` con MySQL 8, Redis 7, `mail-adapter`, API PHP, worker y Nginx. | Completada |
+| F3.2 | Estructura de la API | Enrutador REST en `public/index.php` y módulos en `src/` con CORS corregido para `OPTIONS`. | Completada |
+| F3.3 | Esquema de base de datos | Tablas y migraciones idempotentes en `schema.php` alineadas con el DER actualizado. | Completada |
+| F3.4 | Conexiones MySQL y Redis | Conexiones configuradas por variables de entorno y zona horaria sincronizada (`UTC-3`). | Completada |
 
-### Fase 4: API REST
-
-| ID | Nombre | Descripción | Vencimiento |
+### Fase 4: API REST — Completada
+| ID | Nombre | Descripción | Estado |
 |---|---|---|---|
-| F4.1 | Registro y autenticación | Implementar registro con hash de contraseñas e inicio de sesión con emisión y validación de tokens. | Fin de S3 — completar fecha |
-| F4.2 | Protección de rutas | Aplicar autenticación a rutas privadas y obtener la identidad del cliente desde el token validado. | Fin de S3 — completar fecha |
-| F4.3 | CRUD de servicios | Implementar creación, consulta, edición y eliminación de servicios, limitando cada operación al cliente autenticado. | Fin de S4 — completar fecha |
-| F4.4 | Incidentes y métricas | Exponer historial y métricas de disponibilidad de los últimos 30 días, filtrados por cliente y servicio. | Fin de S4 — completar fecha |
-| F4.5 | API pública de estado | Exponer una consulta de solo lectura mediante enlace único y devolver únicamente servicios públicos publicados. | Fin de S4 — completar fecha |
-| F4.6 | Validaciones y errores | Validar entradas de los endpoints y responder con códigos HTTP y mensajes de error coherentes. | Fin de S4 — completar fecha |
+| F4.1 | Registro y autenticación | Registro, login JWT, recuperación de contraseña, cambio de clave y baja definitiva. | Completada |
+| F4.2 | Protección de rutas | Middleware `authenticatedClientId()` con validación de `auth_version`. | Completada |
+| F4.3 | CRUD de servicios | Alta, listado, edición y eliminación aislados por `client_id`. | Completada |
+| F4.4 | Incidentes y métricas | Cálculo real 30d con recorte de incidentes, métricas RF-05 y paginación en `/api/incidents`. | Completada |
+| F4.5 | API pública de estado | Consulta `/api/public/status/{slug}` sujeta a `public_status_enabled`, `public_page_name` e `is_public`. | Completada |
+| F4.6 | Validaciones y errores | Validaciones estrictas y respuestas HTTP/JSON consistentes. | Completada |
 
-### Fase 5: Monitoreo y workers
-
-| ID | Nombre | Descripción | Vencimiento |
+### Fase 5: Monitoreo y workers — Completada
+| ID | Nombre | Descripción | Estado |
 |---|---|---|---|
-| F5.1 | Checker HTTP/HTTPS | Realizar verificaciones de servicios y registrar latencia, errores HTTP 5xx y timeout máximo de 5 segundos. | Fin de S5 — completar fecha |
-| F5.2 | Registro de verificaciones | Persistir cada resultado del checker con fecha, servicio, estado, código HTTP, latencia y detalle del fallo. | Fin de S5 — completar fecha |
-| F5.3 | Bloqueos con Redis | Adquirir locks con vencimiento antes de procesar cada servicio y liberarlos al terminar, evitando ejecuciones superpuestas. | Fin de S6 — completar fecha |
-| F5.4 | Apertura y cierre de incidentes | Abrir un incidente ante una verificación fallida y cerrarlo cuando el servicio se recupere. | Fin de S6 — completar fecha |
-| F5.5 | Ejecución periódica del worker | Configurar la ejecución continua del worker y respetar el intervalo mínimo de 30 segundos entre verificaciones. | Fin de S6 — completar fecha |
-| F5.6 | Recuperación ante fallos | Manejar errores y expiración de locks para evitar tareas duplicadas o bloqueadas si un proceso se interrumpe. | Fin de S6 — completar fecha |
+| F5.1 | Checker HTTP/HTTPS | Verificaciones cURL con timeout de 5 s, regla 200–499 saludable / 5xx fallo y `failure_type`. | Completada |
+| F5.2 | Registro de verificaciones | Persistencia de resultados en `checks` con `status_code`, `latency`, `failure_type` y `error_message`. | Completada |
+| F5.3 | Bloqueos con Redis | Locks por servicio con TTL y liberación atómica en Lua. | Completada |
+| F5.4 | Apertura y cierre de incidentes | Creación automática de incidentes y resolución con `resolved_at` al recuperarse. | Completada |
+| F5.5 | Ejecución periódica del worker | Programación basada en `MAX(checks.created_at)` + `check_interval` (sin `next_check`). | Completada |
+| F5.6 | Recuperación ante fallos | Transacciones PDO con rollback y expiración segura de locks en Redis. | Completada |
 
-### Fase 6: Integración y pruebas
-
-| ID | Nombre | Descripción | Vencimiento |
+### Fase 6: Integración, QA y documentación — Completada
+| ID | Nombre | Descripción | Estado |
 |---|---|---|---|
-| F6.1 | Integración de autenticación | Conectar los formularios de registro e inicio de sesión del frontend con la API y validar el acceso a rutas privadas. | Fin de S7 — completar fecha |
-| F6.2 | Integración de servicios | Reemplazar los mocks de gestión de servicios por llamadas reales a la API y verificar los flujos de alta, edición y baja. | Fin de S8 — completar fecha |
-| F6.3 | Integración de estado público | Conectar la página pública a la API y validar el enlace único y la visibilidad de los servicios publicados. | Fin de S8 — completar fecha |
-| F6.4 | Integración de incidentes y métricas | Conectar el historial, los gráficos de disponibilidad y la exportación CSV a los datos reales. | Fin de S8 — completar fecha |
-| F6.5 | Pruebas de API y permisos | Probar autenticación, validaciones y aislamiento entre clientes, incluyendo intentos de consultar recursos ajenos. | Fin de S8 — completar fecha |
-| F6.6 | Pruebas de carga del worker | Simular múltiples servicios lentos o fallidos y comprobar que Redis evita ejecuciones concurrentes duplicadas. | Fin de S9 — completar fecha |
-| F6.7 | Validación integral y documentación | Ejecutar los flujos principales en Docker, corregir fallos encontrados y actualizar las instrucciones de ejecución. | Fin de S9 — completar fecha |
-
-## Trabajo ya completado
-
-La Fase 1 —prototipado y maquetado del frontend— se conserva como antecedente completado: inicialización de la SPA, vistas de autenticación, panel privado, formularios de servicios, historial y exportación, página pública y Dockerfile inicial. No se incluye en la lista de nuevas tareas `A iniciar`.
+| F6.1 | Integración de autenticación | Login, registro, recuperación, cambio de clave y baja conectados extremo a extremo. | Completada |
+| F6.2 | Integración de servicios | CRUD real, vista Grilla/Listado y modal de detalle sin parpadeo. | Completada |
+| F6.3 | Integración de estado público | Configuración pública con nombre obligatorio, enlace compartible y vista aislada. | Completada |
+| F6.4 | Integración de incidentes y métricas | Popover de notificaciones, paginación, fecha de resuelto, `failure_type` y CSV. | Completada |
+| F6.5 | Pruebas de API y permisos | Suites de tests unitarios PHP (PHPUnit + standalone) y Frontend (Vitest + RTL). | Completada |
+| F6.6 | Pruebas de carga del worker | Validación de concurrencia con locks en Redis y manejo de fallos múltiples. | Completada |
+| F6.7 | Validación integral y documentación | SRS v1.5, Arquitectura, DER sincronizado, README y Guía de Usuario PDF entregados. | Completada |

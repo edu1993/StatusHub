@@ -1,19 +1,16 @@
 # StatusHub
 
-Servicio web de monitoreo de disponibilidad multi-cliente.
+Servicio web de monitoreo de disponibilidad multi-cliente (Software Libre — Licencia MIT).
 
 ## Proyecto
 
-StatusHub permite que cada cliente registre servicios, consulte su disponibilidad, revise incidentes y comparta una página de estado pública. La interfaz sigue el prototipo de `aplicacion/prototipo/statushub_app.html` y la solución separa frontend, API y worker:
+StatusHub permite que cada cliente registre servicios HTTP/HTTPS, consulte su disponibilidad e historial de latencia, revise y exporte incidentes, y publique una página de estado personalizada para sus propios clientes.
 
-- `aplicacion/frontend`: SPA React/TypeScript/Vite, con HTML, CSS y lógica separados; consume la API REST.
-- `aplicacion/backend/public`: punto de entrada HTTP de PHP.
-- `aplicacion/backend/src`: configuración, persistencia, autenticación, endpoints y checker por módulos.
-- MySQL: clientes, servicios, verificaciones e incidentes.
-- Redis: locks de concurrencia para el worker.
-- Nginx: archivos estáticos del frontend y proxy `/api` al backend.
-
-El frontend incluye autenticación, dashboard privado, gestión de servicios, historial/exportación de incidentes y página pública con búsqueda. Los datos se guardan en MySQL y el worker los actualiza.
+- `aplicacion/frontend`: SPA React/TypeScript/Vite servida por Nginx con proxy `/api` al backend.
+- `aplicacion/backend/public`: punto de entrada HTTP de PHP con manejo de CORS (incluyendo `OPTIONS`).
+- `aplicacion/backend/src`: configuración, persistencia PDO/Redis, zona horaria (`America/Argentina/Buenos_Aires`), autenticación, servicios, incidentes y worker.
+- `aplicacion/mail-adapter`: servicio aislado para envío de correos de recuperación (bandeja local `:8026` o SMTP).
+- MySQL 8 y Redis 7: persistencia relacional y locks de concurrencia para el worker.
 
 ### Arquitectura
 
@@ -21,112 +18,79 @@ El frontend incluye autenticación, dashboard privado, gestión de servicios, hi
 flowchart LR
     Browser["Navegador"] -->|HTTP :8080| Frontend["Frontend React + Nginx"]
     Frontend -->|/api| Backend["API PHP"]
-    Backend --> MySQL[("MySQL")]
+    Backend --> MySQL[("MySQL 8")]
     Backend -->|correo de recuperación| Mail["Adaptador de correo"]
     Mail -->|modo local| Inbox["Bandeja de desarrollo :8026"]
     Mail -->|modo SMTP| SMTP["Servidor SMTP"]
     Worker["Worker PHP"] -->|consultas y resultados| MySQL
-    Worker --> Redis[("Redis: locks")]
+    Worker --> Redis[("Redis 7: locks")]
     Worker -->|chequeos HTTP/HTTPS| Services["Servicios monitoreados"]
 ```
 
-## Funcionalidades
+## Funcionalidades principales
 
-### Cuentas y autenticación
+### Cuentas, autenticación y configuración
 
-- Registro con validación de email, aviso cuando el correo ya está registrado y confirmación de contraseña.
-- Las contraseñas deben tener al menos 8 caracteres, una mayúscula, una minúscula y un número. La regla se valida tanto en el frontend como en la API.
-- El registro requiere aceptar los términos y condiciones, cuya constancia se guarda en la base de datos.
-- La recuperación de contraseña envía un enlace de un solo uso, válido durante una hora. Solicitar un enlace nuevo invalida los anteriores; al cambiar la contraseña, se cierran las sesiones existentes.
+- Registro con validación de email, reglas de contraseña segura (mínimo 8 caracteres, mayúscula, minúscula y número) y aceptación de **Términos y Condiciones (Software Libre MIT)**.
+- Validación por campo con borde rojo y mensajes descriptivos en Login, Registro, Recuperación y Cambio de contraseña.
+- Recuperación de contraseña mediante enlace de un solo uso válido por 1 hora (cierra sesiones previas).
+- Sección **Configuración** con activación/desactivación de página pública, **nombre de organización obligatorio** al publicar, preferencias locales del panel (auto-actualización y vista inicial), cambio de contraseña y **baja definitiva de cuenta** (eliminación en cascada).
 
-### Dashboard y servicios
+### Dashboard, servicios y gráficos
 
-- Dashboard con disponibilidad global, resumen de servicios e incidentes abiertos.
-- El panel se actualiza automáticamente y permite actualizarlo manualmente. El menú de usuario contiene la opción de cerrar sesión; la campana de notificaciones abre el historial de incidentes.
-- Los servicios se pueden crear, editar y eliminar. El formulario valida nombre, URL HTTP/HTTPS e intervalo de chequeo (30–86400 segundos), y resalta los errores junto a cada campo.
-- Cada servicio muestra su estado, disponibilidad, última verificación y visibilidad pública. La eliminación solicita confirmación en un diálogo propio de la aplicación.
-- El buscador de servicios espera brevemente antes de aplicar el filtro. Los enlaces a los endpoints se abren en una pestaña nueva.
-- El gráfico de latencia muestra las últimas 24 horas; se puede seleccionar una hora o hacer clic en una barra para consultar las verificaciones minuto a minuto.
+- Disponibilidad global de los últimos 30 días (calculada sobre la duración real del período con recorte de incidentes previos) y resumen de servicios operativos/caídos.
+- Gráfico de **Disponibilidad Histórica (Últimas 24 hs)** y vista de servicios en **Grilla compacta** o **Listado** con buscador en vivo.
+- Modal de detalle por servicio con KPIs (uptime, nivel, tiempo de caída, latencia, HTTP, intervalo), **gráfico de latencia de 24 hs con desglose minuto a minuto** y últimos incidentes.
+- Regla de monitoreo según SRS: códigos HTTP `200–499` saludables; HTTP `5xx`, timeout `> 5 s`, DNS, SSL/TLS y errores de conexión se registran como caída con `failure_type`.
 
-### Incidentes y página pública
+### Notificaciones, incidentes y página pública
 
-- El historial admite filtros por servicio, estado y fechas; las fechas futuras y los rangos invertidos se rechazan. Los resultados filtrados se pueden exportar como CSV.
-- La página pública muestra los servicios publicados, su disponibilidad, latencia y una búsqueda con debounce. Los enlaces a los endpoints se abren en una pestaña nueva.
-- En el dashboard, el sidebar permanece fijo y el área de contenido puede desplazarse de forma independiente; la navegación entre secciones usa desplazamiento suave.
+- La campana de notificaciones despliega un **popover** con los incidentes abiertos; al hacer clic en uno navega al historial abriendo su detalle.
+- **Historial de Incidentes** paginado (10/20/50 por página) con filtros por servicio, estado y fechas, modal con fecha/hora de **Detectado**, **Resuelto** y **Tipo de Fallo**, y exportación a CSV UTF-8.
+- **Página de Estado Pública** (`/status/<slug>`): privada por defecto; al compartirse por enlace muestra el nombre de la organización y solo los servicios públicos en modo solo lectura estricto (sin botones de admin ni enlaces clickeables a los endpoints).
 
 ## Servicios locales y puertos
-
-`docker compose up --build` levanta estos servicios:
 
 | Servicio | Uso | Acceso local |
 |---|---|---|
 | Frontend (Nginx) | Interfaz web y proxy de `/api` | `http://localhost:8080` |
-| Backend (PHP) | API REST | `http://localhost:8081` |
+| Backend (PHP 8.2) | API REST | `http://localhost:8081` |
 | Adaptador de correo | Bandeja local de desarrollo o envío SMTP | `http://localhost:8026` |
-| MySQL 8 | Datos de la aplicación | `127.0.0.1:3306` |
-| Redis 7 | Locks del worker | `127.0.0.1:6379` |
+| MySQL 8 | Base de datos de la aplicación | `127.0.0.1:3306` |
+| Redis 7 | Locks de concurrencia del worker | `127.0.0.1:6379` |
 | Worker | Chequeos periódicos de servicios | Servicio interno de Docker |
-
-El esquema de MySQL se inicializa automáticamente al arrancar el backend. Las solicitudes de recuperación se limitan a 3 por correo y 10 por IP cada 15 minutos. Los datos del outbox de desarrollo se conservan en el volumen Docker `mail_data`.
-
-## Recuperación de contraseña y adaptador de correo
-
-El servicio aislado `aplicacion/mail-adapter` implementa la interfaz de correo utilizada por la API. Docker Compose inicia por defecto el adaptador en modo `local`: **no envía correos reales** y guarda los mensajes simulados en una bandeja disponible en `http://localhost:8026`. Para probar la recuperación local:
-
-1. Inicia el stack con `docker compose up --build` y registra una cuenta en `http://localhost:8080`.
-2. En la pantalla de inicio de sesión, selecciona **¿Olvidaste tu contraseña?** e ingresa el correo de esa cuenta.
-3. Abre `http://localhost:8026` y usa **Abrir enlace de recuperación** en el mensaje nuevo.
-4. Define una contraseña nueva desde el formulario. El enlace vence en una hora y solo puede usarse una vez.
-
-La bandeja solo acepta conexiones desde la máquina local; en este modo no se envía correo real. Los mensajes simulados se conservan en el volumen Docker `mail_data`.
-
-Para configurar envío real por un servidor SMTP compatible:
-
-1. En `.env`, establece `MAILER_MODE=smtp`.
-2. Completa `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` y `MAIL_FROM`. Ajusta `SMTP_SECURE` y `SMTP_REQUIRE_TLS` según el proveedor.
-3. Usa valores aleatorios privados para `MAILER_API_TOKEN`, `JWT_SECRET` y las credenciales de MySQL. No agregues secretos al repositorio.
-4. Reconstruye y levanta el stack con `docker compose up --build`.
-
-En modo SMTP, la bandeja local devuelve 404. La solicitud de recuperación responde con un mensaje genérico para no revelar si una dirección de correo tiene una cuenta. El frontend incluye la ruta `/reset-password?token=<token>` para establecer la nueva contraseña.
-
-Si ejecutas la interfaz con Vite, el proxy `/api` utiliza por defecto `http://localhost:8081`; configura `FRONTEND_ORIGIN=http://localhost:5173` para que los enlaces de recuperación regresen a Vite. Con Docker, el origen por defecto es `http://localhost:8080`.
-
-## Documentacion
-
-- [Arquitectura](ARQUITECTURA/ARQUITECTURA_StatusHub.md)
-- [Especificacion de requisitos](SRS/SRS_StatusHub.md)
-- [Seguimiento de tareas](TAREAS/TAREAS_StatusHub.md)
-
-## Requisitos
-
-- Docker y Docker Compose.
-- Node.js 22 o superior y npm para desarrollo local del frontend.
 
 ## Levantar en local
 
-Desde la raíz del repositorio, levanta el frontend, la API, el worker, MySQL y Redis:
+Desde la raíz del repositorio:
 
 ```bash
-docker compose up --build
+docker compose up -d --build
 ```
 
-No hace falta un archivo `.env` para el uso local: Compose aplica valores de desarrollo predeterminados. Si necesitas personalizarlos, crea un `.env` local (está excluido de Git). Abre `http://localhost:8080/`. El esquema se crea automáticamente al arrancar. Para crear una cuenta, regístrate desde la pantalla inicial; luego agrega servicios HTTP/HTTPS desde el dashboard.
+Abre `http://localhost:8080/` para usar StatusHub y `http://localhost:8026/` para la bandeja local de recuperación de contraseña. En despliegues productivos reemplaza los secretos en `.env`, configura `MAILER_MODE=smtp` y habilita HTTPS/TLS en el proxy inverso.
 
-Para desarrollo solo del frontend, con la API Docker escuchando en el puerto 8080:
-
-```bash
-npm --prefix aplicacion/frontend ci
-npm --prefix aplicacion/frontend run dev -- --host 0.0.0.0
-```
-
-El servidor Vite reenvía `/api` a `http://localhost:8081`. El enlace público tiene formato `/status/<slug>` y el slug se asigna al registrar el cliente.
-
-Antes de desplegar fuera de desarrollo, reemplaza en `.env` las claves de ejemplo por valores aleatorios robustos y configura `FRONTEND_ORIGIN` para el dominio real. Los puertos de MySQL y Redis solo se publican en loopback.
-
-## Validaciones
+## Validaciones y tests unitarios
 
 ```bash
+# Backend: sintaxis PHP y suite unitaria standalone (sin Composer)
+docker compose exec backend sh -c 'for f in $(find src public bin tests -name "*.php"); do php -l "$f"; done'
+docker compose exec backend php tests/run-standalone.php
+
+# Backend: PHPUnit (requiere Composer)
+cd aplicacion/backend && composer install && composer test
+
+# Frontend: compilación, lint y Vitest
 npm --prefix aplicacion/frontend run build
 npm --prefix aplicacion/frontend run lint
-docker compose config
 ```
+
+Consulta `aplicacion/README-TESTS.md` para ejecutar Vitest + cobertura en el frontend.
+
+## Documentación
+
+- [Guía de Usuario (PDF)](aplicacion/docs/Guia_de_Usuario_StatusHub.pdf)
+- [Especificación de Requisitos (SRS v1.5)](SRS/SRS_StatusHub.md)
+- [Arquitectura](ARQUITECTURA/ARQUITECTURA_StatusHub.md)
+- [Modelo de Datos (DER)](diagramas/db/statushub-db.mmd)
+- [Seguimiento de Tareas](TAREAS/TAREAS_StatusHub.md)
