@@ -1,0 +1,15 @@
+{
+  "name": "statushub/backend",
+  "description": "StatusHub Backend API and Unit Test Suite",
+  "type": "project",
+  "require": {
+    "php": ">=8.2"
+  },
+  "require-dev": {
+    "phpunit/phpunit": "^11.0"
+  },
+  "scripts": {
+    "test": "phpunit --colors=always",
+    "test:standalone": "php tests/run-standalone.php"
+  }
+}

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
+         bootstrap="tests/bootstrap.php"
+         colors="true"
+         failOnWarning="true"
+         failOnRisky="true">
+    <testsuites>
+        <testsuite name="StatusHub Unit Tests">
+            <directory>tests/Unit</directory>
+        </testsuite>
+    </testsuites>
+    <php>
+        <env name="JWT_SECRET" value="test-jwt-secret-key-at-least-32-bytes-long"/>
+        <env name="MAILER_API_TOKEN" value="test-mailer-token"/>
+        <env name="FRONTEND_ORIGIN" value="http://localhost:5173"/>
+        <env name="MAILER_MODE" value="local"/>
+    </php>
+</phpunit>
