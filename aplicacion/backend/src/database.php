@@ -21,6 +21,10 @@ function database(): PDO
         PDO::ATTR_EMULATE_PREPARES => false,
     ]);
 
+    // Alinear la sesión de MySQL con la zona horaria de PHP (por defecto UTC-3 Argentina)
+    $offset = (new DateTimeImmutable('now'))->format('P');
+    $connection->exec("SET time_zone = '{$offset}'");
+
     return $connection;
 }
 

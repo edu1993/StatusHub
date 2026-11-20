@@ -3,23 +3,17 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/src/bootstrap.php';
 
-if (($_SERVER['REQUEST_METHOD'] ?? '') === 'OPTIONS') {
-    http_response_code(204);
-    exit;
-}
-
 try {
     $config = appConfig();
-    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
-    if ($origin !== '' && hash_equals($config['frontend_origin'], $origin)) {
-        header('Access-Control-Allow-Origin: ' . $origin);
-        header('Vary: Origin');
+    applyCorsHeaders($config);
+
+    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+    if ($method === 'OPTIONS') {
+        http_response_code(204);
+        exit;
     }
-    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
-    header('Access-Control-Allow-Headers: Content-Type, Authorization');
 
     $path = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
-    $method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
     $db = database();
 
     if ($path === '/api/health' && $method === 'GET') {
@@ -43,6 +37,20 @@ try {
 
     if (str_starts_with($path, '/api/')) {
         $clientId = authenticatedClientId();
+        if ($path === '/api/account/password' && $method === 'PUT') {
+            changeClientPassword($db, $clientId);
+        }
+        if ($path === '/api/account' && $method === 'DELETE') {
+            deleteClientAccount($db, $clientId);
+        }
+        if ($path === '/api/public-status/settings') {
+            if ($method === 'GET') {
+                getPublicStatusSettings($db, $clientId);
+            }
+            if ($method === 'PUT') {
+                updatePublicStatusSettings($db, $clientId);
+            }
+        }
         if ($path === '/api/services' && $method === 'GET') {
             listServices($db, $clientId);
         }

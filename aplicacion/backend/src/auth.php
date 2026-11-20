@@ -19,7 +19,7 @@ function registerClient(PDO $db): never
     $slug = bin2hex(random_bytes(8));
     try {
         $statement = $db->prepare(
-            'INSERT INTO clients (email, password_hash, public_slug, terms_accepted_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)'
+            'INSERT INTO clients (email, password_hash, public_slug, public_status_enabled, terms_accepted_at) VALUES (?, ?, ?, FALSE, CURRENT_TIMESTAMP)'
         );
         $statement->execute([$email, password_hash($password, PASSWORD_DEFAULT), $slug]);
     } catch (PDOException $error) {
@@ -50,6 +50,88 @@ function loginClient(PDO $db): never
     }
 
     sendJson(authResponse((int) $client['id'], $client['email'], $client['public_slug']));
+}
+
+function ensurePublicPageNameColumn(PDO $db): void
+{
+    static $checked = false;
+    if ($checked) {
+        return;
+    }
+    $col = $db->query("SHOW COLUMNS FROM clients LIKE 'public_page_name'")->fetch();
+    if (!$col) {
+        $db->exec('ALTER TABLE clients ADD COLUMN public_page_name VARCHAR(120) NULL DEFAULT NULL AFTER public_status_enabled');
+    }
+    $checked = true;
+}
+
+function getPublicStatusSettings(PDO $db, int $clientId): never
+{
+    ensurePublicPageNameColumn($db);
+    $statement = $db->prepare('SELECT public_slug, public_status_enabled, public_page_name FROM clients WHERE id = ?');
+    $statement->execute([$clientId]);
+    $client = $statement->fetch();
+    if (!$client) {
+        sendJson(['error' => 'Cliente no encontrado.'], 404);
+    }
+
+    sendJson([
+        'public_slug' => (string) $client['public_slug'],
+        'public_status_enabled' => (bool) $client['public_status_enabled'],
+        'public_page_name' => $client['public_page_name'] !== null ? (string) $client['public_page_name'] : null,
+    ]);
+}
+
+function updatePublicStatusSettings(PDO $db, int $clientId): never
+{
+    ensurePublicPageNameColumn($db);
+    $data = requestData();
+    $hasEnabled = array_key_exists('public_status_enabled', $data);
+    $hasName = array_key_exists('public_page_name', $data);
+    if (!$hasEnabled && !$hasName) {
+        sendJson(['error' => 'Envía public_status_enabled o public_page_name para actualizar.'], 400);
+    }
+
+    $currentStmt = $db->prepare('SELECT public_slug, public_status_enabled, public_page_name FROM clients WHERE id = ?');
+    $currentStmt->execute([$clientId]);
+    $current = $currentStmt->fetch();
+    if (!$current) {
+        sendJson(['error' => 'Cliente no encontrado.'], 404);
+    }
+
+    $nextEnabled = (bool) $current['public_status_enabled'];
+    $nextName = $current['public_page_name'] !== null ? trim((string) $current['public_page_name']) : '';
+
+    if ($hasEnabled) {
+        $enabled = filter_var($data['public_status_enabled'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE);
+        if ($enabled === null) {
+            sendJson(['error' => 'El campo public_status_enabled debe ser booleano.'], 400);
+        }
+        $nextEnabled = $enabled;
+    }
+
+    if ($hasName) {
+        $rawName = $data['public_page_name'];
+        $name = $rawName === null ? '' : trim((string) $rawName);
+        if (strlen($name) > 120) {
+            sendJson(['error' => 'El nombre de la organización no debe superar 120 caracteres.'], 400);
+        }
+        $nextName = $name;
+    }
+
+    if ($nextEnabled && $nextName === '') {
+        sendJson(['error' => 'El nombre de la organización es obligatorio para activar la página pública.'], 400);
+    }
+
+    $update = $db->prepare('UPDATE clients SET public_status_enabled = ?, public_page_name = ? WHERE id = ?');
+    $update->execute([$nextEnabled ? 1 : 0, $nextName === '' ? null : $nextName, $clientId]);
+
+    sendJson([
+        'message' => 'Configuración de página pública actualizada correctamente.',
+        'public_slug' => (string) $current['public_slug'],
+        'public_status_enabled' => $nextEnabled,
+        'public_page_name' => $nextName === '' ? null : $nextName,
+    ]);
 }
 
 function requestPasswordReset(PDO $db): never
@@ -215,21 +297,76 @@ function sendPasswordResetEmail(string $email, string $text, string $html): void
 
 function authResponse(int $clientId, string $email, string $slug): array
 {
-    $statement = database()->prepare('SELECT auth_version FROM clients WHERE id = ?');
+    $statement = database()->prepare('SELECT auth_version, public_status_enabled FROM clients WHERE id = ?');
     $statement->execute([$clientId]);
-    $authVersion = $statement->fetchColumn();
-    if ($authVersion === false) {
+    $row = $statement->fetch();
+    if (!$row) {
         throw new RuntimeException('No se pudo cargar la versión de autenticación de la cuenta.');
     }
 
     return [
         'token' => jwtEncode([
             'client_id' => $clientId,
-            'ver' => (int) $authVersion,
+            'ver' => (int) $row['auth_version'],
             'iat' => time(),
             'exp' => time() + 86400,
         ]),
         'email' => $email,
         'public_slug' => $slug,
+        'public_status_enabled' => (bool) $row['public_status_enabled'],
     ];
+}
+
+function changeClientPassword(PDO $db, int $clientId): never
+{
+    $data = requestData();
+    $currentPassword = (string) ($data['current_password'] ?? '');
+    $newPassword = (string) ($data['new_password'] ?? '');
+
+    if ($currentPassword === '') {
+        sendJson(['error' => 'Debes ingresar tu contraseña actual.'], 400);
+    }
+    if (strlen($newPassword) < 8 || !preg_match('/[A-Z]/', $newPassword) || !preg_match('/[a-z]/', $newPassword) || !preg_match('/[0-9]/', $newPassword)) {
+        sendJson(['error' => 'La nueva contraseña debe tener al menos 8 caracteres, una mayúscula, una minúscula y un número.'], 400);
+    }
+    if ($currentPassword === $newPassword) {
+        sendJson(['error' => 'La nueva contraseña debe ser distinta a la actual.'], 400);
+    }
+
+    $statement = $db->prepare('SELECT email, password_hash, public_slug FROM clients WHERE id = ?');
+    $statement->execute([$clientId]);
+    $client = $statement->fetch();
+    if (!$client || !password_verify($currentPassword, (string) $client['password_hash'])) {
+        sendJson(['error' => 'La contraseña actual es incorrecta.'], 401);
+    }
+
+    $update = $db->prepare('UPDATE clients SET password_hash = ?, auth_version = auth_version + 1 WHERE id = ?');
+    $update->execute([password_hash($newPassword, PASSWORD_DEFAULT), $clientId]);
+
+    $auth = authResponse($clientId, (string) $client['email'], (string) $client['public_slug']);
+    sendJson([
+        'message' => 'Contraseña actualizada correctamente. Las sesiones en otros dispositivos fueron cerradas.',
+        'token' => $auth['token'],
+    ]);
+}
+
+function deleteClientAccount(PDO $db, int $clientId): never
+{
+    $data = requestData();
+    $password = (string) ($data['password'] ?? '');
+    if ($password === '') {
+        sendJson(['error' => 'Debes ingresar tu contraseña para confirmar la baja de la cuenta.'], 400);
+    }
+
+    $statement = $db->prepare('SELECT password_hash FROM clients WHERE id = ?');
+    $statement->execute([$clientId]);
+    $hash = $statement->fetchColumn();
+    if ($hash === false || !password_verify($password, (string) $hash)) {
+        sendJson(['error' => 'La contraseña ingresada es incorrecta.'], 401);
+    }
+
+    $delete = $db->prepare('DELETE FROM clients WHERE id = ?');
+    $delete->execute([$clientId]);
+
+    sendJson(['message' => 'Tu cuenta y todos tus datos fueron eliminados correctamente.']);
 }

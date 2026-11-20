@@ -1,6 +1,18 @@
 <?php
 declare(strict_types=1);
 
+function applyCorsHeaders(array $config): void
+{
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    if ($origin !== '' && hash_equals($config['frontend_origin'], $origin)) {
+        header('Access-Control-Allow-Origin: ' . $origin);
+        header('Vary: Origin');
+    }
+    header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
+    header('Access-Control-Allow-Headers: Content-Type, Authorization');
+    header('Access-Control-Max-Age: 86400');
+}
+
 function sendJson(array $payload, int $status = 200): never
 {
     http_response_code($status);
