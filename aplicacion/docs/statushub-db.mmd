@@ -1,0 +1,65 @@
+erDiagram
+    clients {
+        INT id PK "NOT NULL"
+        VARCHAR(255) email UK "NOT NULL"
+        VARCHAR(255) password_hash "NOT NULL"
+        INT auth_version "NOT NULL, DEFAULT 0"
+        VARCHAR(32) public_slug UK "NOT NULL"
+        BOOLEAN public_status_enabled "NOT NULL, DEFAULT FALSE"
+        VARCHAR(120) public_page_name "NULL"
+        TIMESTAMP terms_accepted_at "NULL"
+        TIMESTAMP created_at "NOT NULL"
+    }
+
+    services {
+        INT id PK "NOT NULL"
+        INT client_id FK "NOT NULL"
+        VARCHAR(255) name "NOT NULL"
+        VARCHAR(2048) url "NOT NULL"
+        INT check_interval "NOT NULL, DEFAULT 60"
+        BOOLEAN is_public "NOT NULL, DEFAULT FALSE"
+        TIMESTAMP created_at "NOT NULL"
+    }
+
+    incidents {
+        INT id PK "NOT NULL"
+        INT service_id FK "NOT NULL"
+        ENUM status "NOT NULL ('Abierto','Resuelto')"
+        INT http_code "NULL"
+        INT latency "NULL"
+        ENUM failure_type "NOT NULL ('dns','ssl','http','timeout','connection','unknown')"
+        TEXT description "NOT NULL"
+        TIMESTAMP created_at "NOT NULL"
+        TIMESTAMP resolved_at "NULL"
+    }
+
+    checks {
+        BIGINT id PK "NOT NULL"
+        INT service_id FK "NOT NULL"
+        INT status_code "NULL"
+        INT latency "NOT NULL"
+        ENUM failure_type "NULL ('dns','ssl','http','timeout','connection','unknown')"
+        VARCHAR(500) error_message "NULL"
+        TIMESTAMP created_at "NOT NULL"
+    }
+
+    password_resets {
+        BIGINT id PK "NOT NULL"
+        INT client_id FK "NOT NULL"
+        CHAR(64) token_hash UK "NOT NULL"
+        TIMESTAMP expires_at "NOT NULL"
+        TIMESTAMP used_at "NULL"
+        TIMESTAMP created_at "NOT NULL"
+    }
+
+    password_reset_requests {
+        BIGINT id PK "NOT NULL"
+        CHAR(64) email_hash "NOT NULL"
+        CHAR(64) ip_hash "NOT NULL"
+        TIMESTAMP created_at "NOT NULL"
+    }
+
+    clients ||--o{ services : owns
+    services ||--o{ incidents : records
+    services ||--o{ checks : has
+    clients ||--o{ password_resets : requests

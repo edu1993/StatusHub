@@ -10,6 +10,8 @@ function initializeSchema(): void
             password_hash VARCHAR(255) NOT NULL,
             auth_version INT NOT NULL DEFAULT 0,
             public_slug VARCHAR(32) NOT NULL UNIQUE,
+            public_status_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+            public_page_name VARCHAR(120) NULL DEFAULT NULL,
             terms_accepted_at TIMESTAMP NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
@@ -21,9 +23,7 @@ function initializeSchema(): void
             url VARCHAR(2048) NOT NULL,
             check_interval INT NOT NULL DEFAULT 60,
             is_public BOOLEAN NOT NULL DEFAULT FALSE,
-            next_check TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            INDEX idx_services_due (next_check),
             INDEX idx_services_client (client_id),
             CONSTRAINT fk_services_client FOREIGN KEY (client_id)
                 REFERENCES clients(id) ON DELETE CASCADE
@@ -35,6 +35,7 @@ function initializeSchema(): void
             status ENUM('Abierto', 'Resuelto') NOT NULL DEFAULT 'Abierto',
             http_code INT NULL,
             latency INT NULL,
+            failure_type ENUM('dns', 'ssl', 'http', 'timeout', 'connection', 'unknown') NOT NULL DEFAULT 'unknown',
             description TEXT NOT NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             resolved_at TIMESTAMP NULL,
@@ -49,6 +50,7 @@ function initializeSchema(): void
             service_id INT NOT NULL,
             status_code INT NULL,
             latency INT NOT NULL,
+            failure_type ENUM('dns', 'ssl', 'http', 'timeout', 'connection', 'unknown') NULL DEFAULT NULL,
             error_message VARCHAR(500) NULL,
             created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
             INDEX idx_checks_service_created (service_id, created_at),
@@ -77,11 +79,13 @@ function initializeSchema(): void
             INDEX idx_reset_requests_ip_created (ip_hash, created_at)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci",
     ];
+
     $db = database();
     foreach ($statements as $statement) {
         $db->exec($statement);
     }
 
+    // Migraciones idempotentes para bases de datos existentes
     $termsColumn = $db->query("SHOW COLUMNS FROM clients LIKE 'terms_accepted_at'")->fetch();
     if (!$termsColumn) {
         $db->exec('ALTER TABLE clients ADD COLUMN terms_accepted_at TIMESTAMP NULL AFTER public_slug');
@@ -92,13 +96,42 @@ function initializeSchema(): void
         $db->exec('ALTER TABLE clients ADD COLUMN auth_version INT NOT NULL DEFAULT 0 AFTER password_hash');
     }
 
+    $publicEnabledColumn = $db->query("SHOW COLUMNS FROM clients LIKE 'public_status_enabled'")->fetch();
+    if (!$publicEnabledColumn) {
+        $db->exec('ALTER TABLE clients ADD COLUMN public_status_enabled BOOLEAN NOT NULL DEFAULT FALSE AFTER public_slug');
+    }
+
+    $publicNameColumn = $db->query("SHOW COLUMNS FROM clients LIKE 'public_page_name'")->fetch();
+    if (!$publicNameColumn) {
+        $db->exec('ALTER TABLE clients ADD COLUMN public_page_name VARCHAR(120) NULL DEFAULT NULL AFTER public_status_enabled');
+    }
+
     $urlColumn = $db->query("SHOW COLUMNS FROM services LIKE 'url'")->fetch();
-    if ($urlColumn && strtolower($urlColumn['Type']) !== 'varchar(2048)') {
+    if ($urlColumn && strtolower((string) $urlColumn['Type']) !== 'varchar(2048)') {
         $db->exec('ALTER TABLE services MODIFY COLUMN url VARCHAR(2048) NOT NULL');
     }
 
-    $column = $db->query("SHOW COLUMNS FROM checks LIKE 'error_message'")->fetch();
-    if (!$column) {
+    $nextCheckColumn = $db->query("SHOW COLUMNS FROM services LIKE 'next_check'")->fetch();
+    if ($nextCheckColumn) {
+        $nextCheckIndex = $db->query("SHOW INDEX FROM services WHERE Key_name = 'idx_services_due'")->fetch();
+        if ($nextCheckIndex) {
+            $db->exec('ALTER TABLE services DROP INDEX idx_services_due');
+        }
+        $db->exec('ALTER TABLE services DROP COLUMN next_check');
+    }
+
+    $checkErrorColumn = $db->query("SHOW COLUMNS FROM checks LIKE 'error_message'")->fetch();
+    if (!$checkErrorColumn) {
         $db->exec('ALTER TABLE checks ADD COLUMN error_message VARCHAR(500) NULL AFTER latency');
+    }
+
+    $checkFailureTypeColumn = $db->query("SHOW COLUMNS FROM checks LIKE 'failure_type'")->fetch();
+    if (!$checkFailureTypeColumn) {
+        $db->exec("ALTER TABLE checks ADD COLUMN failure_type ENUM('dns', 'ssl', 'http', 'timeout', 'connection', 'unknown') NULL DEFAULT NULL AFTER latency");
+    }
+
+    $incidentFailureTypeColumn = $db->query("SHOW COLUMNS FROM incidents LIKE 'failure_type'")->fetch();
+    if (!$incidentFailureTypeColumn) {
+        $db->exec("ALTER TABLE incidents ADD COLUMN failure_type ENUM('dns', 'ssl', 'http', 'timeout', 'connection', 'unknown') NOT NULL DEFAULT 'unknown' AFTER latency");
     }
 }
