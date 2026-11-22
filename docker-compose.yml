@@ -111,6 +111,8 @@ services:
       context: ./aplicacion/frontend
     container_name: statushub_frontend
     restart: unless-stopped
+    environment:
+      BACKEND_UPSTREAM: http://backend:80
     ports:
       - "8080:80"
     depends_on:
