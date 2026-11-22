@@ -207,6 +207,15 @@ function formatFailureType(type?: FailureType | null): string {
   return type ? labels[type] ?? type : '—'
 }
 
+function formatDateTime(value?: string | null): string {
+  if (!value) return '—'
+  const trimmed = value.trim()
+  const match = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}:\d{2}(?::\d{2})?))?/)
+  if (!match) return trimmed
+  const [, year, month, day, time] = match
+  return time ? `${day}/${month}/${year} ${time}` : `${day}/${month}/${year}`
+}
+
 async function copyTextToClipboard(text: string): Promise<boolean> {
   try {
     if (navigator.clipboard && window.isSecureContext) {
@@ -584,7 +593,9 @@ function RecoveryModal({ onClose }: { onClose: () => void }) {
                 Abre la <a href="http://localhost:8026/" target="_blank" rel="noopener noreferrer">bandeja local</a> para usar el enlace de recuperación.
               </p>
             )}
-            <button className="primary-button" type="button" onClick={onClose}>Volver al inicio de sesión</button>
+            <button className="primary-button" type="button" onClick={onClose}>
+              <Icon name="arrowLeft" />Volver al inicio de sesión
+            </button>
           </>
         ) : (
           <form className="recovery-form" onSubmit={(event) => void submit(event)} noValidate>
@@ -676,7 +687,10 @@ function PasswordResetScreen({ token, onComplete }: { token: string; onComplete:
         {completed ? (
           <div className="reset-complete">
             <p>La contraseña se actualizó correctamente. Las sesiones anteriores se cerraron.</p>
-            <button className="auth-submit" type="button" onClick={onComplete}>Ir a iniciar sesión</button>
+            <button className="auth-submit" type="button" onClick={onComplete}>
+              Ir a iniciar sesión
+              <Icon name="chevronRight" />
+            </button>
           </div>
         ) : (
           <form className="recovery-form reset-form" onSubmit={(event) => void submit(event)} noValidate>
@@ -748,6 +762,7 @@ function PasswordResetScreen({ token, onComplete }: { token: string; onComplete:
             {serverError && <p className="auth-error" role="alert">{serverError}</p>}
             <button className="auth-submit" type="submit" disabled={busy}>
               {busy ? 'Guardando…' : 'Cambiar contraseña'}
+              <Icon name="chevronRight" />
             </button>
           </form>
         )}
@@ -904,7 +919,7 @@ function AdminLayout({
                               <span className="notification-item-desc">
                                 {incident.description || (incident.http_code ? `Error HTTP ${incident.http_code}` : 'Fallo detectado en el chequeo')}
                               </span>
-                              <small>{incident.date}</small>
+                              <small>{formatDateTime(incident.date)}</small>
                             </span>
                             <Icon className="notification-item-chevron" name="chevronRight" />
                           </button>
@@ -1390,32 +1405,20 @@ function ServiceCardCompact({
       </div>
 
       <div className="service-card-footer">
-        <button
-          type="button"
-          className="detail-chart-cta"
-          onClick={(event) => {
-            event.stopPropagation()
-            onOpenDetail()
-          }}
+        <span
+          className={`visibility-dot ${service.is_public ? 'public' : ''}`}
+          title={service.is_public ? 'Visible en página pública' : 'Privado'}
         >
-          <Icon name="barChart" />Ver gráficos
-        </button>
-
-        <div className="service-card-footer-right">
-          <span
-            className={`visibility-dot ${service.is_public ? 'public' : ''}`}
-            title={service.is_public ? 'Visible en página pública' : 'Privado'}
-          >
-            <Icon name={service.is_public ? 'globe' : 'lock'} />
-          </span>
-          <div className="service-card-actions" onClick={(event) => event.stopPropagation()}>
-            <button type="button" onClick={onEdit} disabled={busy} aria-label={`Editar ${service.name}`} title="Editar">
-              <Icon name="edit" />
-            </button>
-            <button type="button" onClick={onDelete} disabled={busy} aria-label={`Eliminar ${service.name}`} title="Eliminar">
-              <Icon name="trash" />
-            </button>
-          </div>
+          <Icon name={service.is_public ? 'globe' : 'lock'} />
+          <span>{service.is_public ? 'Público' : 'Privado'}</span>
+        </span>
+        <div className="service-card-actions" onClick={(event) => event.stopPropagation()}>
+          <button type="button" className="icon-btn" onClick={onEdit} disabled={busy} aria-label={`Editar ${service.name}`} title="Editar">
+            <Icon name="edit" />
+          </button>
+          <button type="button" className="icon-btn danger" onClick={onDelete} disabled={busy} aria-label={`Eliminar ${service.name}`} title="Eliminar">
+            <Icon name="trash" />
+          </button>
         </div>
       </div>
     </article>
@@ -1489,9 +1492,6 @@ function ServiceListRow({
       </div>
 
       <div className="service-row-actions" onClick={(event) => event.stopPropagation()}>
-        <button type="button" className="detail-chart-cta" onClick={onOpenDetail}>
-          <Icon name="barChart" />Detalle y gráficos
-        </button>
         <button type="button" className="icon-btn" onClick={onEdit} disabled={busy} aria-label={`Editar ${service.name}`} title="Editar">
           <Icon name="edit" />
         </button>
@@ -1602,19 +1602,19 @@ function ServiceDetailModal({
             <span>Disponibilidad por hora (24 hs)</span>
             <span>{service.recent_checks.length} franjas registradas</span>
           </div>
-          <div className="service-availability-blocks">
-            {service.recent_checks.length === 0 ? (
-              <p className="availability-empty">Sin verificaciones registradas.</p>
-            ) : (
-              service.recent_checks.map((check, index) => (
+          {service.recent_checks.length === 0 ? (
+            <p className="availability-empty">Todavía no hay verificaciones registradas en las últimas 24 horas.</p>
+          ) : (
+            <div className="service-availability-blocks">
+              {service.recent_checks.map((check, index) => (
                 <i
                   key={`${check.hour_start}-${index}`}
                   className={check.status === 'down' ? 'down' : 'up'}
                   title={`${check.timestamp} hs · ${check.status === 'down' ? check.error_message ?? 'Caído' : `Operativo (${check.latency} ms)`}`}
                 />
-              ))
-            )}
-          </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {incidents.length > 0 && (
@@ -1628,7 +1628,7 @@ function ServiceDetailModal({
                       {incident.status}
                     </span>
                     <span className="service-incident-desc">{incident.description}</span>
-                    <small>{incident.date}</small>
+                    <small>{formatDateTime(incident.date)}</small>
                   </button>
                 </li>
               ))}
@@ -1962,7 +1962,7 @@ function IncidentHistory({
                 tabIndex={0}
                 onKeyDown={(event) => event.key === 'Enter' && onSelect(incident)}
               >
-                <td>{incident.date}</td>
+                <td>{formatDateTime(incident.date)}</td>
                 <td><strong>{incident.service_name}</strong><small>{incident.url}</small></td>
                 <td>
                   <span className={`incident-status ${incident.status === 'Abierto' ? 'open' : 'resolved'}`}>
@@ -2081,14 +2081,14 @@ function IncidentModal({ incident, onClose }: { incident: ApiIncident; onClose: 
         <div className="incident-modal-grid">
           <div>
             <span>Detectado (Fecha y Hora)</span>
-            <strong>{incident.date}</strong>
+            <strong>{formatDateTime(incident.date)}</strong>
           </div>
           <div>
             <span>Resuelto (Fecha y Hora)</span>
             <strong>
               {incident.status === 'Abierto'
                 ? 'En curso (Abierto)'
-                : resolvedAt ?? 'Resuelto (sin marca horaria)'}
+                : resolvedAt ? formatDateTime(resolvedAt) : 'Resuelto (sin marca horaria)'}
             </strong>
           </div>
           <div>
@@ -2397,6 +2397,9 @@ function SettingsView({
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [currentPwVisible, setCurrentPwVisible] = useState(false)
+  const [newPwVisible, setNewPwVisible] = useState(false)
+  const [confirmPwVisible, setConfirmPwVisible] = useState(false)
   const [pwErrors, setPwErrors] = useState<{ current?: string; next?: string; confirm?: string }>({})
   const [pwBusy, setPwBusy] = useState(false)
   const [pwSuccess, setPwSuccess] = useState('')
@@ -2627,35 +2630,59 @@ function SettingsView({
         <form className="settings-form" onSubmit={(event) => void submitPasswordChange(event)} noValidate>
           <div className="form-field">
             <label htmlFor="pw-current">Contraseña actual</label>
-            <input
-              id="pw-current"
-              type="password"
-              autoComplete="current-password"
-              value={currentPassword}
-              className={pwErrors.current ? 'invalid' : ''}
-              aria-invalid={Boolean(pwErrors.current)}
-              onChange={(event) => {
-                setCurrentPassword(event.target.value)
-                setPwErrors((prev) => ({ ...prev, current: undefined }))
-              }}
-            />
+            <div className="password-visibility-wrap">
+              <input
+                id="pw-current"
+                type={currentPwVisible ? 'text' : 'password'}
+                autoComplete="current-password"
+                value={currentPassword}
+                className={pwErrors.current ? 'invalid' : ''}
+                aria-invalid={Boolean(pwErrors.current)}
+                onChange={(event) => {
+                  setCurrentPassword(event.target.value)
+                  setPwErrors((prev) => ({ ...prev, current: undefined }))
+                }}
+              />
+              <button
+                className="password-visibility-toggle"
+                type="button"
+                onClick={() => setCurrentPwVisible((visible) => !visible)}
+                aria-label={currentPwVisible ? 'Ocultar contraseña actual' : 'Mostrar contraseña actual'}
+                aria-pressed={currentPwVisible}
+              >
+                <Icon name={currentPwVisible ? 'eyeOff' : 'eye'} />
+                <span>{currentPwVisible ? 'Ocultar' : 'Mostrar'}</span>
+              </button>
+            </div>
             {pwErrors.current && <span className="field-error" role="alert">{pwErrors.current}</span>}
           </div>
 
           <div className="form-field">
             <label htmlFor="pw-new">Nueva contraseña</label>
-            <input
-              id="pw-new"
-              type="password"
-              autoComplete="new-password"
-              value={newPassword}
-              className={pwErrors.next ? 'invalid' : ''}
-              aria-invalid={Boolean(pwErrors.next)}
-              onChange={(event) => {
-                setNewPassword(event.target.value)
-                setPwErrors((prev) => ({ ...prev, next: undefined }))
-              }}
-            />
+            <div className="password-visibility-wrap">
+              <input
+                id="pw-new"
+                type={newPwVisible ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={newPassword}
+                className={pwErrors.next ? 'invalid' : ''}
+                aria-invalid={Boolean(pwErrors.next)}
+                onChange={(event) => {
+                  setNewPassword(event.target.value)
+                  setPwErrors((prev) => ({ ...prev, next: undefined }))
+                }}
+              />
+              <button
+                className="password-visibility-toggle"
+                type="button"
+                onClick={() => setNewPwVisible((visible) => !visible)}
+                aria-label={newPwVisible ? 'Ocultar nueva contraseña' : 'Mostrar nueva contraseña'}
+                aria-pressed={newPwVisible}
+              >
+                <Icon name={newPwVisible ? 'eyeOff' : 'eye'} />
+                <span>{newPwVisible ? 'Ocultar' : 'Mostrar'}</span>
+              </button>
+            </div>
             {pwErrors.next && <span className="field-error" role="alert">{pwErrors.next}</span>}
           </div>
 
@@ -2668,18 +2695,30 @@ function SettingsView({
 
           <div className="form-field">
             <label htmlFor="pw-confirm">Confirmar nueva contraseña</label>
-            <input
-              id="pw-confirm"
-              type="password"
-              autoComplete="new-password"
-              value={confirmPassword}
-              className={pwErrors.confirm ? 'invalid' : ''}
-              aria-invalid={Boolean(pwErrors.confirm)}
-              onChange={(event) => {
-                setConfirmPassword(event.target.value)
-                setPwErrors((prev) => ({ ...prev, confirm: undefined }))
-              }}
-            />
+            <div className="password-visibility-wrap">
+              <input
+                id="pw-confirm"
+                type={confirmPwVisible ? 'text' : 'password'}
+                autoComplete="new-password"
+                value={confirmPassword}
+                className={pwErrors.confirm ? 'invalid' : ''}
+                aria-invalid={Boolean(pwErrors.confirm)}
+                onChange={(event) => {
+                  setConfirmPassword(event.target.value)
+                  setPwErrors((prev) => ({ ...prev, confirm: undefined }))
+                }}
+              />
+              <button
+                className="password-visibility-toggle"
+                type="button"
+                onClick={() => setConfirmPwVisible((visible) => !visible)}
+                aria-label={confirmPwVisible ? 'Ocultar confirmación de nueva contraseña' : 'Mostrar confirmación de nueva contraseña'}
+                aria-pressed={confirmPwVisible}
+              >
+                <Icon name={confirmPwVisible ? 'eyeOff' : 'eye'} />
+                <span>{confirmPwVisible ? 'Ocultar' : 'Mostrar'}</span>
+              </button>
+            </div>
             {pwErrors.confirm && <span className="field-error" role="alert">{pwErrors.confirm}</span>}
           </div>
 

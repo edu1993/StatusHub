@@ -117,8 +117,8 @@ describe('Historial de Incidentes — Paginación y modal con fecha/hora de dete
     await user.click(screen.getByText('Internal Server Error'))
     expect(screen.getByText('Detectado (Fecha y Hora)')).toBeInTheDocument()
     expect(screen.getByText('Resuelto (Fecha y Hora)')).toBeInTheDocument()
-    expect(screen.getAllByText('2026-11-18 14:00:00').length).toBeGreaterThanOrEqual(1)
-    expect(screen.getByText('2026-11-18 14:22:00')).toBeInTheDocument()
+    expect(screen.getAllByText('18/11/2026 14:00:00').length).toBeGreaterThanOrEqual(1)
+    expect(screen.getByText('18/11/2026 14:22:00')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /Cerrar/i }))
 

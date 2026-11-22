@@ -115,9 +115,9 @@ describe('Dashboard — Disponibilidad histórica, vista Grilla/Listado, modal d
     await user.click(screen.getByRole('button', { name: /Listado/i }))
     expect(container.querySelector('.monitored-list')).toBeInTheDocument()
 
-    // Abrir modal de detalle desde el botón de gráficos
-    const chartButtons = screen.getAllByRole('button', { name: /Detalle y gráficos/i })
-    await user.click(chartButtons[0])
+    // Abrir modal de detalle haciendo clic directamente en la fila del servicio
+    expect(screen.queryByRole('button', { name: /Detalle y gráficos/i })).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /Ver detalle y gráficos de API Core/i }))
 
     const dialog = await screen.findByRole('dialog')
     expect(dialog).toBeInTheDocument()
