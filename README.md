@@ -94,3 +94,9 @@ Consulta `aplicacion/README-TESTS.md` para ejecutar Vitest + cobertura en el fro
 - [Arquitectura](ARQUITECTURA/ARQUITECTURA_StatusHub.md)
 - [Modelo de Datos (DER)](diagramas/db/statushub-db.mmd)
 - [Seguimiento de Tareas](TAREAS/TAREAS_StatusHub.md)
+
+## Demo 
+
+- [StatusHub](https://radiant-celebration-production-545c0b7c.up.railway.app/)
+
+La demo se encuentra levantada en el servicio *railway.com*
