@@ -9,7 +9,7 @@ StatusHub permite que cada cliente registre servicios HTTP/HTTPS, consulte su di
 - `aplicacion/frontend`: SPA React/TypeScript/Vite servida por Nginx con proxy `/api` al backend.
 - `aplicacion/backend/public`: punto de entrada HTTP de PHP con manejo de CORS (incluyendo `OPTIONS`).
 - `aplicacion/backend/src`: configuración, persistencia PDO/Redis, zona horaria (`America/Argentina/Buenos_Aires`), autenticación, servicios, incidentes y worker.
-- `aplicacion/mail-adapter`: servicio aislado para envío de correos de recuperación (bandeja local `:8026` o SMTP).
+- `aplicacion/mail-adapter`: servicio aislado para envío de correos de recuperación (bandeja local `:8026`, API HTTPS de Brevo o SMTP).
 - MySQL 8 y Redis 7: persistencia relacional y locks de concurrencia para el worker.
 
 ### Arquitectura
@@ -68,7 +68,7 @@ Desde la raíz del repositorio:
 docker compose up -d --build
 ```
 
-Abre `http://localhost:8080/` para usar StatusHub y `http://localhost:8026/` para la bandeja local de recuperación de contraseña. En despliegues productivos reemplaza los secretos en `.env`, configura `MAILER_MODE=smtp` y habilita HTTPS/TLS en el proxy inverso.
+Abre `http://localhost:8080/` para usar StatusHub y `http://localhost:8026/` para la bandeja local de recuperación de contraseña. En despliegues productivos reemplaza los secretos en `.env`, configura `MAILER_MODE=brevo` (recomendado en Railway Free/Trial/Hobby) o `MAILER_MODE=smtp` (Railway Pro/VPS) y habilita HTTPS/TLS en el proxy inverso.
 
 ## Validaciones y tests unitarios
 
@@ -89,7 +89,8 @@ Consulta `aplicacion/README-TESTS.md` para ejecutar Vitest + cobertura en el fro
 
 ## Documentación
 
-- [Guía de Usuario (PDF)](aplicacion/docs/Guia_de_Usuario_StatusHub.pdf)
+- [Manual de Usuario (PDF)](Manuales/ManualdeUsuarioStatusHub.pdf)
+- [Manual de Despliegue (PDF)](Manuales/ManualdeDespliegueStatusHub.pdf)
 - [Especificación de Requisitos (SRS v1.5)](SRS/SRS_StatusHub.md)
 - [Arquitectura](ARQUITECTURA/ARQUITECTURA_StatusHub.md)
 - [Modelo de Datos (DER)](diagramas/db/statushub-db.mmd)

@@ -10,12 +10,13 @@ const apiToken = process.env.MAILER_API_TOKEN
 const dataDirectory = process.env.MAILER_DATA_DIR ?? '/data'
 const outboxPath = join(dataDirectory, 'outbox.json')
 const inboxEnabled = process.env.MAILER_INBOX_ENABLED !== 'false'
+const brevoApiUrl = process.env.BREVO_API_URL ?? 'https://api.brevo.com/v3/smtp/email'
 const maxBodyBytes = 100_000
 let smtpTransport
 let outboxQueue = Promise.resolve()
 
-if (!['local', 'smtp'].includes(mode)) {
-  throw new Error('MAILER_MODE debe ser "local" o "smtp".')
+if (!['local', 'smtp', 'brevo'].includes(mode)) {
+  throw new Error('MAILER_MODE debe ser "local", "smtp" o "brevo".')
 }
 if (!apiToken) {
   throw new Error('Falta configurar MAILER_API_TOKEN.')
@@ -76,6 +77,23 @@ function updateOutbox(operation) {
   return pending
 }
 
+function parseSender(rawFrom) {
+  const value = (rawFrom ?? '').trim()
+  if (!value) {
+    throw new Error('Falta configurar MAIL_FROM.')
+  }
+  const angleMatch = value.match(/^(?:"?([^"<>]+?)"?\s*)?<([^<>\s@]+@[^<>\s@]+\.[^<>\s@]+)>$/)
+  if (angleMatch) {
+    const name = angleMatch[1]?.trim()
+    const email = angleMatch[2].trim()
+    return name ? { name, email } : { email }
+  }
+  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) {
+    return { email: value }
+  }
+  throw new Error('MAIL_FROM debe tener formato "Nombre <correo@dominio.com>" o "correo@dominio.com".')
+}
+
 function createSmtpTransport() {
   const host = process.env.SMTP_HOST
   const from = process.env.MAIL_FROM
@@ -96,12 +114,47 @@ function createSmtpTransport() {
   })
 }
 
+async function deliverViaBrevo(message) {
+  const apiKey = (process.env.BREVO_API_KEY ?? '').trim()
+  if (!apiKey) {
+    throw new Error('El modo Brevo requiere configurar BREVO_API_KEY.')
+  }
+  const sender = parseSender(process.env.MAIL_FROM)
+
+  const response = await fetch(brevoApiUrl, {
+    method: 'POST',
+    headers: {
+      accept: 'application/json',
+      'content-type': 'application/json',
+      'api-key': apiKey,
+    },
+    body: JSON.stringify({
+      sender,
+      to: [{ email: message.to }],
+      subject: message.subject,
+      textContent: message.text,
+      htmlContent: message.html,
+    }),
+    signal: AbortSignal.timeout(7000),
+  })
+
+  if (!response.ok) {
+    const detail = await response.text().catch(() => '')
+    throw new Error(`Brevo API respondió con HTTP ${response.status}${detail ? `: ${detail.slice(0, 200)}` : ''}`)
+  }
+}
+
 async function deliver(message) {
   if (mode === 'local') {
     await updateOutbox((messages) => {
       messages.unshift({ ...message, created_at: new Date().toISOString() })
       return writeOutbox(messages.slice(0, 100))
     })
+    return
+  }
+
+  if (mode === 'brevo') {
+    await deliverViaBrevo(message)
     return
   }
 
