@@ -178,7 +178,7 @@ function requestPasswordReset(PDO $db): never
                 $invalidate->execute([(int) $clientId]);
                 $createReset = $db->prepare("
                     INSERT INTO password_resets (client_id, token_hash, expires_at)
-                    VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 1 HOUR))
+                    VALUES (?, ?, DATE_ADD(NOW(), INTERVAL 15 MINUTE))
                 ");
                 $createReset->execute([(int) $clientId, $tokenHash]);
                 $db->commit();
@@ -190,11 +190,11 @@ function requestPasswordReset(PDO $db): never
             $config = appConfig();
             $resetUrl = $config['frontend_origin'] . '/reset-password?token=' . rawurlencode($token);
             $text = "Recibimos una solicitud para cambiar la contraseña de tu cuenta de StatusHub.\n\n"
-                . "Usa este enlace dentro de una hora: {$resetUrl}\n\n"
+                . "Usa este enlace dentro de 15 minutos: {$resetUrl}\n\n"
                 . "Si no solicitaste el cambio, puedes ignorar este mensaje.";
             $safeUrl = htmlspecialchars($resetUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
             $html = '<p>Recibimos una solicitud para cambiar la contraseña de tu cuenta de StatusHub.</p>'
-                . '<p><a href="' . $safeUrl . '">Cambiar contraseña</a>. Este enlace vence en una hora.</p>'
+                . '<p><a href="' . $safeUrl . '">Cambiar contraseña</a>. Este enlace vence en 15 minutos.</p>'
                 . '<p>Si no solicitaste el cambio, puedes ignorar este mensaje.</p>';
         }
 

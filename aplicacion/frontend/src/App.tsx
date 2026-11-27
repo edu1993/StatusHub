@@ -599,7 +599,7 @@ function RecoveryModal({ onClose }: { onClose: () => void }) {
           </>
         ) : (
           <form className="recovery-form" onSubmit={(event) => void submit(event)} noValidate>
-            <p>Ingresa el correo de tu cuenta para solicitar un enlace de recuperación de un solo uso, válido durante una hora.</p>
+            <p>Ingresa el correo de tu cuenta para solicitar un enlace de recuperación de un solo uso, válido durante 15 minutos.</p>
             <div className="auth-field">
               <label htmlFor="recovery-email">Correo electrónico</label>
               <input
